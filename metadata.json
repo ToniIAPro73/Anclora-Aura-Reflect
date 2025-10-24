@@ -1,0 +1,5 @@
+{
+  "name": "Moodboard Generator",
+  "description": "Generate a moodboard collage of 6 images based on an emotion or theme. Refine your results by selecting an image and providing a more specific prompt.",
+  "requestFramePermissions": []
+}
