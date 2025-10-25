@@ -32,7 +32,7 @@ Download the SDXL checkpoints from Hugging Face after accepting the [CreativeML 
 - **Runtime**: Node.js 20 with TypeScript for type parity with the frontend.
 - **Framework**: Express.js with `express-async-errors` for promise-aware middleware.
 - **Model integration**: Pluggable `LocalModelClient` abstraction that wraps the local inference executable, Python service, or library bindings.
-- **Image storage**: All image data remains in-memory; responses are encoded as Data URIs to keep the frontend unchanged.
+- **Image storage**: All image data remains in-memory; responses return base64 strings that the frontend wraps in Data URIs to keep rendering logic unchanged.
 - **Streaming**: Generated binary chunks are streamed from the model into base64 encoders to avoid buffering large files in memory when possible.
 
 ### High-level modules
@@ -47,7 +47,7 @@ Download the SDXL checkpoints from Hugging Face after accepting the [CreativeML 
 | `middleware/cors.ts` | Centralizes CORS policy configuration. |
 
 ## API Contracts
-The contracts mirror `generateInitialImages` and `refineImages` defined in [`services/geminiService.ts`](../services/geminiService.ts). All responses include images as `data:image/png;base64,...` Data URIs so the frontend can render them directly without additional transforms.
+The contracts mirror `generateInitialImages` and `refineImages` defined in [`services/geminiService.ts`](../services/geminiService.ts). Request payloads accept the same shapes produced by the React components, and responses return raw base64 strings so the existing helpers can continue to prepend the `data:image/png;base64,` prefix on the client.
 
 ### `POST /generate`
 - **Description**: Produces two initial candidate images from a natural language mood prompt.
@@ -59,16 +59,66 @@ The contracts mirror `generateInitialImages` and `refineImages` defined in [`ser
     "temperature": "Number, optional, defaults to 0.8"
   }
   ```
+- **JSON Schema**
+  ```json
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["prompt"],
+    "additionalProperties": false,
+    "properties": {
+      "prompt": { "type": "string", "minLength": 1, "maxLength": 500 },
+      "aspectRatio": {
+        "type": "string",
+        "enum": ["Auto", "1:1", "3:2", "16:9", "9:16", "4:5"],
+        "default": "Auto"
+      },
+      "temperature": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 2,
+        "default": 0.8
+      }
+    }
+  }
+  ```
 - **Response (201)**
   ```json
   {
     "images": [
-      "data:image/png;base64,iVBORw0KGgo...",
-      "data:image/png;base64,iVBORw0KGgo..."
+      "iVBORw0KGgo...",
+      "iVBORw0KGgo..."
     ],
     "meta": {
       "model": "local-imagen",
       "durationMs": 1234
+    }
+  }
+  ```
+- **Response schema**
+  ```json
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["images"],
+    "additionalProperties": false,
+    "properties": {
+      "images": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "string",
+          "description": "PNG payload encoded as base64 without the data URI prefix"
+        }
+      },
+      "meta": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "model": { "type": "string" },
+          "durationMs": { "type": "integer", "minimum": 0 }
+        }
+      }
     }
   }
   ```
@@ -88,16 +138,64 @@ The contracts mirror `generateInitialImages` and `refineImages` defined in [`ser
     "refinePrompt": "String, required"
   }
   ```
+- **JSON Schema**
+  ```json
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["baseImages", "refinePrompt"],
+    "additionalProperties": false,
+    "properties": {
+      "baseImages": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "string",
+          "pattern": "^data:image\\/(png|jpeg);base64,",
+          "description": "Full data URI as emitted by the frontend image grid"
+        }
+      },
+      "refinePrompt": { "type": "string", "minLength": 1, "maxLength": 500 }
+    }
+  }
+  ```
 - **Response (201)**
   ```json
   {
     "images": [
-      "data:image/png;base64,iVBORw0KGgo...",
-      "data:image/png;base64,iVBORw0KGgo..."
+      "iVBORw0KGgo...",
+      "iVBORw0KGgo..."
     ],
     "meta": {
       "model": "local-imagen",
       "durationMs": 1560
+    }
+  }
+  ```
+- **Response schema**
+  ```json
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["images"],
+    "additionalProperties": false,
+    "properties": {
+      "images": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "string",
+          "description": "PNG payload encoded as base64 without the data URI prefix"
+        }
+      },
+      "meta": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "model": { "type": "string" },
+          "durationMs": { "type": "integer", "minimum": 0 }
+        }
+      }
     }
   }
   ```
@@ -108,7 +206,7 @@ The contracts mirror `generateInitialImages` and `refineImages` defined in [`ser
 
 ### Shared response shape
 All responses share the top-level keys:
-- `images`: array of Data URIs (length 2 by default).
+- `images`: array of base64-encoded PNG payloads (length 2 by default). The frontend wraps each string with the `data:image/png;base64,` prefix, matching the expectations of `generateInitialImages` and `refineImages` in [`services/geminiService.ts`](../services/geminiService.ts).
 - `meta`: optional metadata block (model identifier, timing, warnings, etc.).
 
 ### Validation summary
@@ -122,9 +220,32 @@ All responses share the top-level keys:
 
 ## CORS Strategy
 - Use the `cors` package with explicit allow-list derived from environment variables, e.g., `ALLOWED_ORIGINS=https://aura-reflect.app`.
+- Always include the local Vite origin (`http://localhost:${process.env.VITE_PORT ?? 5173}`) so that the SPA can communicate with the backend during development.
 - Support credentials only if required; otherwise disable to simplify preflight responses.
 - Cache preflight responses for 10 minutes with `Access-Control-Max-Age`.
 - Deny all other origins by returning a 403 with a structured JSON error payload.
+
+```ts
+// middleware/cors.ts
+import cors from "cors";
+
+const vitePort = process.env.VITE_PORT ?? "5173";
+const allowedOrigins = new Set(
+  (process.env.ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map(origin => origin.trim())
+    .filter(Boolean)
+);
+
+allowedOrigins.add(`http://localhost:${vitePort}`);
+
+export const corsMiddleware = cors({
+  origin: Array.from(allowedOrigins),
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  maxAge: 600,
+});
+```
 
 ## Error Handling Plan
 1. **Input validation** via `zod` schemas with a custom error formatter returning `{ "error": { "code": "VALIDATION_ERROR", "details": [...] } }` and HTTP 400.
@@ -144,6 +265,19 @@ All responses share the top-level keys:
 - **Timeouts**: enforce request-level timeouts (e.g., 60s) using `AbortController` to cancel slow model invocations.
 - **Health check**: expose `GET /health` returning model availability and version info.
 - **Configuration**: use `dotenv` with typed configuration objects to avoid missing env vars.
+
+## Environment configuration
+Centralize configuration in a strongly-typed module (e.g., `config/env.ts`) that reads from environment variables, validates them with `zod`, and exports a single immutable object.
+
+| Variable | Required | Default | Purpose |
+| -------- | -------- | ------- | ------- |
+| `PORT` | No | `8787` | HTTP port for the Express server. |
+| `ALLOWED_ORIGINS` | No | `""` | Comma-separated allow-list of production origins for CORS. |
+| `VITE_PORT` | No | `5173` | Ensures the development SPA origin is whitelisted for CORS. |
+| `VITE_API_BASE_URL` | Yes (frontend) | — | Injected into the SPA; points fetch calls at the local backend. |
+| `GENERATION_MODEL` | No | `imagen-4.0-generate-001` | Overrides the model used for initial image generation. |
+| `REFINE_MODEL` | No | `gemini-2.5-flash-image` | Overrides the model used for refinement calls. |
+| `IMAGE_COUNT` | No | `2` | Controls the number of images generated per request. |
 - **Testing**: add integration tests with supertest mocking the `LocalModelClient` to validate contracts and error cases.
 
 ## Deployment Notes

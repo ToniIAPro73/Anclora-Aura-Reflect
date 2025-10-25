@@ -2,11 +2,12 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# Aura Reflect – Local Development Guide
 
-This contains everything you need to run your app locally.
+This repository contains the React frontend for Aura Reflect along with documentation for the companion backend described in [`
+docs/backend_design.md`](./docs/backend_design.md).
 
-View your app in AI Studio: https://ai.studio/apps/drive/1bgjlqJ61J71FTs1FPg91aH7pvte4oNb3
+View the original AI Studio app: https://ai.studio/apps/drive/1bgjlqJ61J71FTs1FPg91aH7pvte4oNb3
 
 ## Requisitos previos
 

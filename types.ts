@@ -1,4 +1,3 @@
-
 export enum AppState {
   INITIAL,
   GENERATING,
@@ -11,3 +10,9 @@ export type GeneratedImage = {
   id: string;
   src: string;
 };
+
+export interface LocalEngineConfig {
+  modelPath?: string;
+  steps?: number;
+  guidanceScale?: number;
+}
