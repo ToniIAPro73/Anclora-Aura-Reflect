@@ -3,6 +3,31 @@
 ## Overview
 This document outlines a Node.js + Express backend that brokers requests between the Aura Reflect frontend and a locally hosted image generation model. The backend exposes two RESTful endpoints—`POST /generate` and `POST /refine`—that mirror the existing frontend service contracts while handling model execution, binary streaming, and operational concerns such as CORS and error propagation.
 
+## Configuration & Environment Variables
+
+The backend expects configuration through environment variables loaded via `dotenv`. Copy `.env.example` to `.env` and supply at least the following values:
+
+| Variable | Description |
+| -------- | ----------- |
+| `IMAGE_SERVICE_BASE_URL` | Base URL exposed to the frontend (defaults to `http://localhost:4000`). |
+| `MODEL_CHECKPOINT_DIR` | Local path to the Stable Diffusion XL base checkpoint. |
+| `MODEL_REFINER_CHECKPOINT_DIR` | Path to the refiner checkpoint used for high-quality outputs. |
+| `MODEL_DEVICE` | Target device (`cuda`, `cuda:0`, `mps`, `cpu`). |
+| `MODEL_PRECISION` | Floating-point precision for inference (`fp32`, `fp16`, `bf16`). |
+| `ENABLE_XFORMERS` | Toggle for memory-saving attention kernels. |
+| `MODEL_MAX_BATCH_SIZE` | Maximum number of images to generate per request. |
+| `BACKEND_PORT` | Port used by the Express server (default `4000`). |
+
+Refer to [`docs/local_service_setup.md`](local_service_setup.md) for practical instructions on populating these variables and exporting them in development.
+
+## Hardware Requirements
+
+Running Stable Diffusion XL locally generally requires a GPU with **12 GB VRAM** for the base model and **16 GB+** if you plan to use the refiner or larger batch sizes. Development on CPU is possible but incurs substantial latency. Detailed sizing guidance and mitigation strategies (FP16, xFormers, batch tuning) are documented in [`docs/local_service_setup.md`](local_service_setup.md#requisitos-de-hardware).
+
+## Model Acquisition & Licensing
+
+Download the SDXL checkpoints from Hugging Face after accepting the [CreativeML Open RAIL++-M](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/README.md#license) terms. The `LocalModelClient` should validate the existence of the paths provided via `MODEL_CHECKPOINT_DIR` and optionally `MODEL_REFINER_CHECKPOINT_DIR`, raising descriptive errors if the files are missing. See [`docs/local_service_setup.md`](local_service_setup.md#descarga-de-checkpoints) for CLI commands.
+
 ## Architecture
 - **Runtime**: Node.js 20 with TypeScript for type parity with the frontend.
 - **Framework**: Express.js with `express-async-errors` for promise-aware middleware.
