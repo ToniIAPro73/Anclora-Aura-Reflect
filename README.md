@@ -15,6 +15,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1bgjlqJ61J71FTs1FPg91aH
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. Set the URL of your local backend in a `.env` file:
+   `VITE_IMAGE_BACKEND_URL=http://localhost:3001`
 3. Run the app:
    `npm run dev`
