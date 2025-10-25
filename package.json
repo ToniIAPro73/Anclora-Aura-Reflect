@@ -10,15 +10,8 @@
     "start:server": "node server/index.js"
   },
   "dependencies": {
-    "@google/genai": "^1.27.0",
-    "@huggingface/inference": "^3.1.1",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2",
-    "pino": "^9.6.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "zod": "^3.24.4"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
