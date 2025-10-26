@@ -50,6 +50,27 @@ const handleResponse = async (response: Response) => {
   return data.images as string[];
 };
 
+let CLOUD_GPU_AVAILABLE: boolean | null = null;
+let CLOUD_HEALTH_LAST_CHECK = 0;
+
+const isCloudGpuAvailable = async (): Promise<boolean> => {
+  if (!isCloudConfigured()) return false;
+  const now = Date.now();
+  // Re-check health every 60 seconds
+  if (CLOUD_GPU_AVAILABLE !== null && now - CLOUD_HEALTH_LAST_CHECK < 60_000) {
+    return CLOUD_GPU_AVAILABLE;
+  }
+  const health = await getHealth();
+  CLOUD_HEALTH_LAST_CHECK = now;
+  if (health.ok) {
+    const device = String(health.data?.device || "").toLowerCase();
+    CLOUD_GPU_AVAILABLE = device.includes("cuda") || device.includes("mps");
+  } else {
+    CLOUD_GPU_AVAILABLE = false;
+  }
+  return CLOUD_GPU_AVAILABLE!;
+};
+
 export const generateInitialImages = async (
   prompt: string,
   aspectRatio: string,
@@ -60,11 +81,12 @@ export const generateInitialImages = async (
     throw new Error("Cloud engine URL is not configured.");
   }
 
+  const gpu = await isCloudGpuAvailable();
   const payload = {
     prompt,
     aspectRatio,
     temperature,
-    resolution: "high",
+    resolution: gpu ? "high" : "standard",
     config: buildConfigPayload(config),
   };
 
