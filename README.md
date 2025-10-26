@@ -42,25 +42,29 @@ El proyecto incluye un script de despliegue para crear/reutilizar un Space (SDK 
 - ID del Space: `SPACE_ID` (ej. `ToniBalles73/Anclora`)
 - Orígenes frontend (CORS): `ORIGINS` (ej. `http://localhost:5173,http://127.0.0.1:5173`)
 
-### 2) Ejecutar desde npm
+### 2) Comando único, multiplataforma
 
-Windows (PowerShell):
-```powershell
+Usa el comando `deploy:space`, que lee tus variables de entorno y ejecuta el despliegue de forma consistente en Windows, macOS y Linux:
+
+```bash
+# Windows (PowerShell)
 $env:HF_TOKEN="hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 $env:SPACE_ID="ToniBalles73/Anclora"
 $env:ORIGINS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
-npm run deploy:space:win
-```
+npm run deploy:space
 
-Linux/macOS:
-```bash
+# Linux/macOS (bash/zsh)
 export HF_TOKEN="hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 export SPACE_ID="ToniBalles73/Anclora"
 export ORIGINS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
-npm run deploy:space:unix
+npm run deploy:space
 ```
 
-El script:
+Opcionalmente, también existen comandos específicos por sistema:
+- `npm run deploy:space:win`
+- `npm run deploy:space:unix`
+
+El despliegue:
 - Crea/reutiliza el Space (SDK=docker)
 - Sube Dockerfile, app.py, requirements.txt y `backend/`
 - Intenta fijar secretos: `ALLOW_ORIGINS`, `HUGGINGFACEHUB_API_TOKEN`
