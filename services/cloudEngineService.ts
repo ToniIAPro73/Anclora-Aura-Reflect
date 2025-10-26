@@ -64,6 +64,7 @@ export const generateInitialImages = async (
     prompt,
     aspectRatio,
     temperature,
+    resolution: "high",
     config: buildConfigPayload(config),
   };
 

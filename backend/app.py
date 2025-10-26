@@ -40,9 +40,11 @@ OPTIMIZED_STEPS = int(os.environ.get("SD_STEPS", "15"))  # env override
 OPTIMIZED_GUIDANCE_SCALE = float(os.environ.get("SD_GUIDANCE", "7"))  # env override
 
 # Add CORS middleware
+origins_env = os.environ.get("ALLOW_ORIGINS") or "http://localhost:8082,http://127.0.0.1:8082"
+allow_origins = [o.strip() for o in origins_env.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8082", "http://127.0.0.1:8082"],  # Allow frontend origin
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -196,8 +198,9 @@ async def generate_images(payload: Dict[str, Any] = Body(...)):
 
         logger.info(f"Starting image generation - Prompt: {prompt[:50]}..., Aspect Ratio: {aspect_ratio}, Steps: {OPTIMIZED_STEPS}")
 
-        # Map aspect ratio to VRAM-safe SD dimensions for 4GB GPUs
-        ratios = {
+        # Map aspect ratio to dimensions; allow 'high' resolution for cloud
+        resolution = (payload.get("resolution") or "").lower()
+        ratios_low = {
             "Auto": (640, 640),
             "1:1": (640, 640),
             "9:16": (512, 896),
@@ -210,7 +213,21 @@ async def generate_images(payload: Dict[str, Any] = Body(...)):
             "4:5": (512, 640),
             "21:9": (960, 416),
         }
-        width, height = ratios.get(aspect_ratio, (640, 640))
+        ratios_high = {
+            "Auto": (1024, 1024),
+            "1:1": (1024, 1024),
+            "9:16": (576, 1024),
+            "16:9": (1024, 576),
+            "3:4": (768, 1024),
+            "4:3": (1024, 768),
+            "3:2": (1024, 680),
+            "2:3": (680, 1024),
+            "5:4": (1024, 816),
+            "4:5": (816, 1024),
+            "21:9": (1024, 432),
+        }
+        ratio_map = ratios_high if resolution == "high" else ratios_low
+        width, height = ratio_map.get(aspect_ratio, ratio_map["Auto"])
 
         # Generate images with optimized parameters
         guidance_scale = OPTIMIZED_GUIDANCE_SCALE  # Use optimized fixed value instead of temperature mapping
