@@ -1,6 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, field_validator, ConfigDict, Field
+from typing import Any, Dict
 from diffusers import StableDiffusionPipeline
 from transformers import BlipProcessor, BlipForConditionalGeneration
 import torch
@@ -31,27 +31,6 @@ try:
 except Exception as e:
     raise RuntimeError(f"Failed to load models: {str(e)}")
 
-class GenerateRequest(BaseModel):
-    model_config = ConfigDict(extra='ignore', populate_by_name=True)
-    prompt: str
-    aspect_ratio: str = Field(alias="aspectRatio")
-    temperature: float
-
-    @field_validator('aspect_ratio')
-    @classmethod
-    def validate_aspect_ratio(cls, v):
-        valid_ratios = {
-            "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "5:4", "4:5", "21:9", "Auto"
-        }
-        if v not in valid_ratios:
-            raise ValueError(f'Invalid aspectRatio. Must be one of {valid_ratios}')
-        return v
-
-class RefineRequest(BaseModel):
-    model_config = ConfigDict(extra='ignore')
-    images: list[str]  # base64 strings
-    refinePrompt: str
-
 def base64_to_image(b64_string: str) -> Image.Image:
     image_data = base64.b64decode(b64_string)
     return Image.open(io.BytesIO(image_data))
@@ -61,9 +40,41 @@ def image_to_base64(image: Image.Image) -> str:
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-@app.post("/generate")
-async def generate_images(request: GenerateRequest):
+def _extract_aspect_ratio(payload: Dict[str, Any]) -> str:
+    raw_ratio = payload.get("aspectRatio") or payload.get("aspect_ratio") or payload.get("aspectratio")
+    if raw_ratio is None:
+        raise HTTPException(status_code=422, detail="aspectRatio field is required.")
+    valid_ratios = {
+        "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "5:4", "4:5", "21:9", "Auto"
+    }
+    if raw_ratio not in valid_ratios:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid aspectRatio. Must be one of {sorted(valid_ratios)}",
+        )
+    return raw_ratio
+
+
+def _extract_temperature(payload: Dict[str, Any]) -> float:
+    temp = payload.get("temperature")
+    if temp is None:
+        raise HTTPException(status_code=422, detail="temperature field is required.")
     try:
+        return float(temp)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="temperature must be a number.")
+
+
+@app.post("/generate")
+async def generate_images(payload: Dict[str, Any] = Body(...)):
+    try:
+        prompt = payload.get("prompt")
+        if not prompt or not isinstance(prompt, str):
+            raise HTTPException(status_code=422, detail="prompt field is required.")
+
+        aspect_ratio = _extract_aspect_ratio(payload)
+        temperature = _extract_temperature(payload)
+
         # Map aspect ratio to SD dimensions
         ratios = {
             "1:1": (512, 512),
@@ -78,12 +89,12 @@ async def generate_images(request: GenerateRequest):
             "21:9": (1152, 512),
             "Auto": (512, 512),
         }
-        width, height = ratios.get(request.aspect_ratio, (512, 512))
+        width, height = ratios.get(aspect_ratio, (512, 512))
 
         # Generate images
-        guidance_scale = 7 + (request.temperature * 8)  # Map temperature (0-1) to guidance (7-15)
+        guidance_scale = 7 + (temperature * 8)  # Map temperature (0-1) to guidance (7-15)
         images = sd_pipe(
-            request.prompt,
+            prompt,
             width=width,
             height=height,
             num_images_per_prompt=NUM_IMAGES,
@@ -91,15 +102,25 @@ async def generate_images(request: GenerateRequest):
         ).images
 
         return {"images": [image_to_base64(img) for img in images]}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/refine")
-async def refine_images(request: RefineRequest):
+async def refine_images(payload: Dict[str, Any] = Body(...)):
     try:
+        raw_images = payload.get("images") or payload.get("baseImages")
+        if not isinstance(raw_images, list) or not raw_images:
+            raise HTTPException(status_code=422, detail="images field must contain base64 strings.")
+
+        refine_prompt = payload.get("refinePrompt") or payload.get("prompt")
+        if not refine_prompt or not isinstance(refine_prompt, str):
+            raise HTTPException(status_code=422, detail="refinePrompt field is required.")
+
         # Describe images using BLIP
         descriptions = []
-        for b64 in request.images:
+        for b64 in raw_images:
             try:
                 image = base64_to_image(b64)
             except Exception:
@@ -110,12 +131,14 @@ async def refine_images(request: RefineRequest):
             descriptions.append(description)
 
         # Combine descriptions with refine prompt
-        combined_prompt = f"Based on: {'; '.join(descriptions)}. Incorporate: {request.refinePrompt}"
+        combined_prompt = f"Based on: {'; '.join(descriptions)}. Incorporate: {refine_prompt}"
 
         # Generate new images
         images = sd_pipe(combined_prompt, num_images_per_prompt=NUM_IMAGES, guidance_scale=10).images
 
         return {"images": [image_to_base64(img) for img in images]}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

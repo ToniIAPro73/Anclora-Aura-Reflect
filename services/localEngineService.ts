@@ -56,7 +56,6 @@ export const generateInitialImages = async (
     prompt,
     aspectRatio,
     temperature,
-    config: buildConfigPayload(config),
   };
 
   const response = await fetch(`${LOCAL_ENGINE_BASE_URL}/generate`, {
