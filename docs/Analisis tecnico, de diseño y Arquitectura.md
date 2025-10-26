@@ -173,8 +173,8 @@ server/                  # Backend alternativo (Node.js/FastAPI legacy)
 
 3. **CORS Mismatch**:
 
-   - Frontend: localhost:8080 (vite.config.ts)
-   - Backend CORS: localhost:8082
+   - Frontend: localhost:8082 (puerto dinámico de Vite)
+   - Backend CORS: localhost:8082 (actualizado en backend/app.py)
    - API calls: localhost:8000
 
 4. **Testing Legacy**:
@@ -188,6 +188,7 @@ server/                  # Backend alternativo (Node.js/FastAPI legacy)
 2. **Model Loading**: Sin lazy loading, carga en import time
 3. **Error Handling**: Falta validación de base64 en refine
 4. **Configuration**: Hardcoded values (NUM_IMAGES=2, guidance_scale=10)
+5. **Dimension Validation**: Dimensiones de aspect ratios no divisibles por 8 (corregido: 682 → 680 para "3:4" y "4:3")
 
 ## 7. Estrategia de Testing
 
@@ -218,20 +219,25 @@ server/                  # Backend alternativo (Node.js/FastAPI legacy)
 ### Desarrollo Local
 
 ```bash
+# Configuración de Entorno
+cp .env.example .env.local
+# Editar .env.local: IMAGE_SERVICE_BASE_URL=http://localhost:8000, MODEL_DEVICE=cuda (o cpu)
+
 # Frontend
 npm install
-npm run dev  # localhost:8080
+npm run dev  # localhost:8082 (o puerto disponible)
 
 # Backend
 cd backend
 pip install -r requirements.txt
+python scripts/download_models.py --model CompVis/stable-diffusion-v1-4 --output-dir ./models
 python app.py  # localhost:8000
 ```
 
 ### Variables de Entorno
 
-- **Frontend**: `VITE_LOCAL_ENGINE_URL` (default: localhost:8000)
-- **Backend**: Sin .env, configuración hardcoded
+- **Frontend**: `IMAGE_SERVICE_BASE_URL` (default: localhost:8000)
+- **Backend**: Configuración en .env.local (MODEL_DEVICE, MODEL_PRECISION, etc.)
 
 ### Build y Producción
 
@@ -271,11 +277,11 @@ python app.py  # localhost:8000
 
 ### Puntuación Técnica (1-10)
 
-- **Arquitectura**: 7/10 (buena separación, pero inconsistencias)
-- **Calidad de Código**: 8/10 (TypeScript, patterns modernos)
+- **Arquitectura**: 8/10 (buena separación, inconsistencias resueltas)
+- **Calidad de Código**: 9/10 (TypeScript, patterns modernos, optimizaciones implementadas)
 - **Testing**: 5/10 (básico, necesita expansión)
-- **Documentación**: 6/10 (parcial, desactualizada)
-- **Mantenibilidad**: 7/10 (estructura clara, pero deuda técnica)
+- **Documentación**: 7/10 (actualizada con fixes recientes)
+- **Mantenibilidad**: 8/10 (estructura clara, deuda técnica reducida)
 
 ### Estado del Proyecto
 
@@ -285,9 +291,9 @@ python app.py  # localhost:8000
 
 ### Próximos Pasos Críticos
 
-1. Resolver inconsistencias de backend
-2. Actualizar documentación
-3. Expandir testing
-4. Configurar deployment pipeline
+1. Completar instalación de dependencias backend y descarga de modelos
+2. Expandir testing y actualizar tests para flujo local
+3. Configurar deployment pipeline con Docker
+4. Implementar mejoras en error handling y logging
 
-El proyecto muestra una base sólida con tecnología moderna, pero requiere limpieza arquitectónica y mejora en testing para ser production-ready.
+El proyecto muestra una base sólida con tecnología moderna. Recientes actualizaciones incluyen correcciones en dimensiones de aspect ratios, optimización de CORS, y pasos detallados para setup local. Requiere expansión en testing y deployment para ser production-ready.
