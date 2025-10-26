@@ -149,6 +149,13 @@ def main() -> int:
     else:
         print("Please set ALLOW_ORIGINS in Space Settings -> Variables manually.")
 
+    # Also set HUGGINGFACEHUB_API_TOKEN secret so gated models can download
+    ok_token = set_space_secret(api, args.space_id, "HUGGINGFACEHUB_API_TOKEN", args.token)
+    if ok_token:
+        print("Set HUGGINGFACEHUB_API_TOKEN secret for model authentication.")
+    else:
+        print("Please set HUGGINGFACEHUB_API_TOKEN in Space Settings -> Secrets manually.")
+
     # Compute Space URL and update .env.local
     space_url = compute_space_url(args.space_id)
     update_env_local(space_url)

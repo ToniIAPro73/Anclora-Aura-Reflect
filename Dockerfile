@@ -12,19 +12,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Ensure writable cache locations for Hugging Face / Transformers / Torch
+# Ensure writable cache locations for Hugging Face / Transformers / Torch (use /tmp which is writable)
 ENV HOME=/app \
-    XDG_CACHE_HOME=/app/.cache \
-    HF_HOME=/app/.cache/huggingface \
-    HF_HUB_CACHE=/app/.cache/huggingface/hub \
-    TRANSFORMERS_CACHE=/app/.cache/transformers \
-    HF_DATASETS_CACHE=/app/.cache/datasets \
-    TORCH_HOME=/app/.cache/torch
-RUN mkdir -p /app/.cache \
-    /app/.cache/huggingface/hub \
-    /app/.cache/transformers \
-    /app/.cache/datasets \
-    /app/.cache/torch
+    XDG_CACHE_HOME=/tmp/.cache \
+    HF_HOME=/tmp/hf \
+    HF_HUB_CACHE=/tmp/hf/hub \
+    TRANSFORMERS_CACHE=/tmp/transformers \
+    HF_DATASETS_CACHE=/tmp/datasets \
+    TORCH_HOME=/tmp/torch
 
 # Install Python deps
 COPY requirements.txt /app/requirements.txt
