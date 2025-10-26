@@ -76,8 +76,8 @@ export const refineImages = async (
   config: LocalEngineConfig
 ): Promise<string[]> => {
   const payload = {
-    prompt: refinePrompt,
-    baseImages: baseImages.map(dataUrlToBase64),
+    refinePrompt,
+    images: baseImages.map(dataUrlToBase64),
     config: buildConfigPayload(config),
   };
 

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, ConfigDict, Field
 from diffusers import StableDiffusionPipeline
 from transformers import BlipProcessor, BlipForConditionalGeneration
 import torch
@@ -32,23 +32,25 @@ except Exception as e:
     raise RuntimeError(f"Failed to load models: {str(e)}")
 
 class GenerateRequest(BaseModel):
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
     prompt: str
-    aspect_ratio: str
+    aspect_ratio: str = Field(alias="aspectRatio")
     temperature: float
 
     @field_validator('aspect_ratio')
     @classmethod
     def validate_aspect_ratio(cls, v):
         valid_ratios = {
-            "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "5:4", "4:5", "21:9"
+            "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "5:4", "4:5", "21:9", "Auto"
         }
         if v not in valid_ratios:
-            raise ValueError(f'Invalid aspect_ratio. Must be one of {valid_ratios}')
+            raise ValueError(f'Invalid aspectRatio. Must be one of {valid_ratios}')
         return v
 
 class RefineRequest(BaseModel):
+    model_config = ConfigDict(extra='ignore')
     images: list[str]  # base64 strings
-    refine_prompt: str
+    refinePrompt: str
 
 def base64_to_image(b64_string: str) -> Image.Image:
     image_data = base64.b64decode(b64_string)
@@ -74,6 +76,7 @@ async def generate_images(request: GenerateRequest):
             "5:4": (640, 512),
             "4:5": (512, 640),
             "21:9": (1152, 512),
+            "Auto": (512, 512),
         }
         width, height = ratios.get(request.aspect_ratio, (512, 512))
 
@@ -107,7 +110,7 @@ async def refine_images(request: RefineRequest):
             descriptions.append(description)
 
         # Combine descriptions with refine prompt
-        combined_prompt = f"Based on: {'; '.join(descriptions)}. Incorporate: {request.refine_prompt}"
+        combined_prompt = f"Based on: {'; '.join(descriptions)}. Incorporate: {request.refinePrompt}"
 
         # Generate new images
         images = sd_pipe(combined_prompt, num_images_per_prompt=NUM_IMAGES, guidance_scale=10).images
