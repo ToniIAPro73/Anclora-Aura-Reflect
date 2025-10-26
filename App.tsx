@@ -34,10 +34,31 @@ const App: React.FC = () => {
   const [cloudHealth, setCloudHealth] = useState<{ ok: boolean; data?: any; error?: string } | null>(null);
   const [refreshingHealth, setRefreshingHealth] = useState<boolean>(false);
 
+  const [showStatus, setShowStatus] = useState<boolean>(false);
+
   const localUrl = (import.meta.env.VITE_LOCAL_ENGINE_URL ?? "http://localhost:8000").replace(/\/$/, "");
   const cloudUrl = (import.meta.env.VITE_CLOUD_ENGINE_URL ?? "").replace(/\/$/, "");
   const isLoading =
     appState === AppState.GENERATING || appState === AppState.REFINING;
+
+  const preferCloudAuto = (aspectRatio: string, temperature: number): boolean => {
+    // Basic heuristic:
+    // - if local is unavailable OR running on CPU and cloud is online, prefer cloud
+    // - prefer cloud for tall/wide ratios likely to need more memory
+    const localDevice = localHealth?.data?.device;
+    const localUnavailable = !localHealth?.ok;
+    const cloudOnline = Boolean(cloudHealth?.ok);
+
+    const highDemandRatio = ["16:9", "9:16", "21:9"].includes(aspectRatio);
+    const highTemp = temperature >= 1.5;
+
+    if (localUnavailable && cloudOnline) return true;
+    if (localDevice === "cpu" && cloudOnline) return true;
+    if (highDemandRatio && cloudOnline) return true;
+    if (highTemp && cloudOnline && localDevice === "cpu") return true;
+
+    return false;
+  };
 
   const handleGenerate = useCallback(
     async (prompt: string, aspectRatio: string, temperature: number) => {
@@ -70,13 +91,22 @@ const App: React.FC = () => {
             { disableFallback: true }
           );
         } else {
-          // Auto (fallback)
-          generatedImages = await localEngine.generateInitialImages(
-            prompt,
-            aspectRatio,
-            temperature,
-            engineConfig
-          );
+          // Auto: decide best route, but still fallback if local fails.
+          if (preferCloudAuto(aspectRatio, temperature)) {
+            generatedImages = await cloudEngine.generateInitialImages(
+              prompt,
+              aspectRatio,
+              temperature,
+              engineConfig
+            );
+          } else {
+            generatedImages = await localEngine.generateInitialImages(
+              prompt,
+              aspectRatio,
+              temperature,
+              engineConfig
+            );
+          }
         }
         const formattedImages: GeneratedImage[] = generatedImages.map(
           (src, index) => ({
@@ -94,7 +124,7 @@ const App: React.FC = () => {
         clearInterval(intervalId);
       }
     },
-    [engineMode, engineConfig]
+    [engineMode, engineConfig, localHealth, cloudHealth]
   );
 
   const selectedImages = useMemo(() => {
@@ -137,12 +167,20 @@ const App: React.FC = () => {
             { disableFallback: true }
           );
         } else {
-          // Auto (fallback)
-          refinedImageSrcs = await localEngine.refineImages(
-            baseImageSrcs,
-            refinePrompt,
-            engineConfig
-          );
+          // Auto: prefer cloud if local is unavailable/CPU.
+          if (preferCloudAuto("Auto", 1)) {
+            refinedImageSrcs = await cloudEngine.refineImages(
+              baseImageSrcs,
+              refinePrompt,
+              engineConfig
+            );
+          } else {
+            refinedImageSrcs = await localEngine.refineImages(
+              baseImageSrcs,
+              refinePrompt,
+              engineConfig
+            );
+          }
         }
         const formattedImages: GeneratedImage[] = refinedImageSrcs.map(
           (src, index) => ({
@@ -161,7 +199,7 @@ const App: React.FC = () => {
         clearInterval(intervalId);
       }
     },
-    [selectedImages, engineMode, engineConfig]
+    [selectedImages, engineMode, engineConfig, localHealth, cloudHealth]
   );
 
   const handleReset = () => {
@@ -221,7 +259,7 @@ const App: React.FC = () => {
       {isLoading && <Spinner message={loadingMessage} />}
       <div className="w-full max-w-7xl mx-auto flex flex-col h-full">
         <Header />
-        <main className="flex-1">
+        <main className="flex-1 relative">
           {error && (
             <div
               className="bg-red-500/10 backdrop-blur-sm border border-red-500/30 text-red-300 px-4 py-3 rounded-lg relative text-center mb-4"
@@ -233,8 +271,8 @@ const App: React.FC = () => {
           )}
 
           {appState === AppState.INITIAL && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch h-[calc(100vh-220px)] fade-in-up">
-              <div className="md:col-span-2 flex">
+            <div className="flex justify-center items-stretch h-[calc(100vh-220px)] fade-in-up">
+              <div className="flex w-full max-w-5xl">
                 <PromptForm
                   onSubmit={handleGenerate}
                   isLoading={isLoading}
@@ -244,17 +282,31 @@ const App: React.FC = () => {
                   onEngineModeChange={setEngineMode}
                 />
               </div>
-              <div className="md:col-span-1 flex">
-                <EngineStatus
-                  engineMode={engineMode}
-                  localStatus={localHealth ?? undefined}
-                  cloudStatus={cloudHealth ?? undefined}
-                  localUrl={localUrl}
-                  cloudUrl={cloudUrl}
-                  onRefresh={runHealthCheck}
-                  refreshing={refreshingHealth}
-                />
-              </div>
+            </div>
+          )}
+
+          {/* Floating status toggle (keeps EngineStatus in app but hidden by default) */}
+          <div className="absolute top-0 right-0 p-2">
+            <button
+              type="button"
+              className="btn-soft text-xs px-3 py-1 rounded-md"
+              onClick={() => setShowStatus((prev) => !prev)}
+            >
+              {showStatus ? "Hide Status" : "Status"}
+            </button>
+          </div>
+
+          {showStatus && (
+            <div className="absolute top-10 right-2 w-[380px] max-h-[60vh] overflow-auto z-50">
+              <EngineStatus
+                engineMode={engineMode}
+                localStatus={localHealth ?? undefined}
+                cloudStatus={cloudHealth ?? undefined}
+                localUrl={localUrl}
+                cloudUrl={cloudUrl}
+                onRefresh={runHealthCheck}
+                refreshing={refreshingHealth}
+              />
             </div>
           )}
 
