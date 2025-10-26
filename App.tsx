@@ -233,8 +233,8 @@ const App: React.FC = () => {
           )}
 
           {appState === AppState.INITIAL && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-              <div className="order-2 md:order-1">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch h-[calc(100vh-220px)]">
+              <div className="md:col-span-2 flex">
                 <PromptForm
                   onSubmit={handleGenerate}
                   isLoading={isLoading}
@@ -244,7 +244,7 @@ const App: React.FC = () => {
                   onEngineModeChange={setEngineMode}
                 />
               </div>
-              <div className="order-1 md:order-2">
+              <div className="md:col-span-1 flex">
                 <EngineStatus
                   engineMode={engineMode}
                   localStatus={localHealth ?? undefined}
