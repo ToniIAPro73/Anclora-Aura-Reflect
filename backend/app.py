@@ -1,4 +1,6 @@
 # pyright: reportMissingImports=false
+# type: ignore
+
 """
 Aura Reflect Backend - Optimized for RTX 3050 4GB
 
@@ -82,7 +84,7 @@ try:
         # Auto: FP16 on CUDA/MPS, FP32 on CPU
         torch_dtype = torch.float16 if device in {"cuda", "mps"} else torch.float32
 
-    sd_pipe = StableDiffusionPipeline.from_pretrained(
+    sd_pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_pretrained(
         os.environ.get("SD_MODEL_ID", "CompVis/stable-diffusion-v1-4"),
         torch_dtype=torch_dtype,
         safety_checker=None,  # Disable for speed (add back if needed)
@@ -141,11 +143,11 @@ try:
         except Exception as e:
             logger.warning(f"torch.compile not enabled: {e}")
 
-    blip_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-    blip_model = BlipForConditionalGeneration.from_pretrained(
+    blip_processor: BlipProcessor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+    blip_model: BlipForConditionalGeneration = BlipForConditionalGeneration.from_pretrained(
         "Salesforce/blip-image-captioning-base",
         torch_dtype=torch_dtype
-    ).to(device)
+    ).to(device)  # type: ignore
 
 except Exception as e:
     raise RuntimeError(f"Failed to load models: {str(e)}")
@@ -174,16 +176,6 @@ def _extract_aspect_ratio(payload: Dict[str, Any]) -> str:
     return raw_ratio
 
 
-def _extract_temperature(payload: Dict[str, Any]) -> float:
-    temp = payload.get("temperature")
-    if temp is None:
-        raise HTTPException(status_code=422, detail="temperature field is required.")
-    try:
-        return float(temp)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=422, detail="temperature must be a number.")
-
-
 @app.post("/generate")
 async def generate_images(payload: Dict[str, Any] = Body(...)):
     try:
@@ -195,7 +187,6 @@ async def generate_images(payload: Dict[str, Any] = Body(...)):
             raise HTTPException(status_code=422, detail="prompt field is required.")
 
         aspect_ratio = _extract_aspect_ratio(payload)
-        temperature = _extract_temperature(payload)
 
         logger.info(f"Starting image generation - Prompt: {prompt[:50]}..., Aspect Ratio: {aspect_ratio}, Steps: {OPTIMIZED_STEPS}")
 
@@ -241,7 +232,7 @@ async def generate_images(payload: Dict[str, Any] = Body(...)):
             num_images_per_prompt=NUM_IMAGES,
             guidance_scale=guidance_scale,
             num_inference_steps=num_inference_steps,
-        ).images
+        ).images  # type: ignore
 
         generation_time = time.time() - start_time
         logger.info(f"Image generation completed in {generation_time:.2f} seconds for {NUM_IMAGES} images")
@@ -287,7 +278,7 @@ async def benchmark_system():
             num_images_per_prompt=1,
             guidance_scale=OPTIMIZED_GUIDANCE_SCALE,
             num_inference_steps=OPTIMIZED_STEPS
-        ).images
+        ).images  # type: ignore
 
         generation_time = time.time() - start_time
 
@@ -339,7 +330,7 @@ async def refine_images(payload: Dict[str, Any] = Body(...)):
                 image = base64_to_image(b64)
             except Exception:
                 raise HTTPException(status_code=400, detail="Invalid base64 string in images")
-            inputs = blip_processor(image, return_tensors="pt").to(device)
+            inputs = blip_processor(image, return_tensors="pt").to(device)  # type: ignore
             out = blip_model.generate(**inputs, max_length=50)
             description = blip_processor.decode(out[0], skip_special_tokens=True)
             descriptions.append(description)
@@ -353,7 +344,7 @@ async def refine_images(payload: Dict[str, Any] = Body(...)):
             num_images_per_prompt=NUM_IMAGES,
             guidance_scale=OPTIMIZED_GUIDANCE_SCALE,
             num_inference_steps=OPTIMIZED_STEPS
-        ).images
+        ).images  # type: ignore
 
         refinement_time = time.time() - start_time
         logger.info(f"Image refinement completed in {refinement_time:.2f} seconds for {NUM_IMAGES} images")
