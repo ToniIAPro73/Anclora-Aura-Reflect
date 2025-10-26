@@ -10,14 +10,8 @@
     "download:models": "./scripts/download-models.sh"
   },
   "dependencies": {
-<<<<<<< HEAD
     "react-dom": "^19.2.0",
     "react": "^19.2.0"
-=======
-    "@google/genai": "^1.27.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
->>>>>>> 076992c1cb9c54ec143db2372bef070eb5b27f29
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

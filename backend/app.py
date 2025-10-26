@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from diffusers import StableDiffusionPipeline
 from transformers import BlipProcessor, BlipForConditionalGeneration
 import torch
@@ -20,6 +20,16 @@ class GenerateRequest(BaseModel):
     prompt: str
     aspect_ratio: str
     temperature: float
+
+    @field_validator('aspect_ratio')
+    @classmethod
+    def validate_aspect_ratio(cls, v):
+        valid_ratios = {
+            "1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "5:4", "4:5", "21:9"
+        }
+        if v not in valid_ratios:
+            raise ValueError(f'Invalid aspect_ratio. Must be one of {valid_ratios}')
+        return v
 
 class RefineRequest(BaseModel):
     images: list[str]  # base64 strings

@@ -1,7 +1,9 @@
-<<<<<<< HEAD
 import React, { useState, useCallback, useMemo } from "react";
-import { AppState, GeneratedImage } from "./types";
-import { generateInitialImages, refineImages } from "./services/localService";
+import { AppState, GeneratedImage, LocalEngineConfig } from "./types";
+import {
+  generateInitialImages,
+  refineImages,
+} from "./services/localEngineService";
 import Header from "./components/Header";
 import PromptForm from "./components/PromptForm";
 import ImageGrid from "./components/ImageGrid";
@@ -9,21 +11,9 @@ import Spinner from "./components/Spinner";
 import RefinePanel from "./components/RefinePanel";
 import Gallery from "./components/Gallery";
 import { LOADING_MESSAGES } from "./constants";
-=======
-import React, { useState, useCallback, useMemo } from 'react';
-import { AppState, GeneratedImage, LocalEngineConfig } from './types';
-import { generateInitialImages, refineImages } from './services/localEngineService';
-import Header from './components/Header';
-import PromptForm from './components/PromptForm';
-import ImageGrid from './components/ImageGrid';
-import Spinner from './components/Spinner';
-import RefinePanel from './components/RefinePanel';
-import Gallery from './components/Gallery';
-import { LOADING_MESSAGES } from './constants';
->>>>>>> 076992c1cb9c54ec143db2372bef070eb5b27f29
 
 const DEFAULT_ENGINE_CONFIG: LocalEngineConfig = {
-  modelPath: '',
+  modelPath: "",
   steps: 20,
   guidanceScale: 7.5,
 };
@@ -34,14 +24,12 @@ const App: React.FC = () => {
   const [galleries, setGalleries] = useState<GeneratedImage[][]>([]);
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-<<<<<<< HEAD
   const [loadingMessage, setLoadingMessage] = useState<string>(
     LOADING_MESSAGES[0]
   );
-=======
-  const [loadingMessage, setLoadingMessage] = useState<string>(LOADING_MESSAGES[0]);
-  const [engineConfig, setEngineConfig] = useState<LocalEngineConfig>(DEFAULT_ENGINE_CONFIG);
->>>>>>> 076992c1cb9c54ec143db2372bef070eb5b27f29
+  const [engineConfig, setEngineConfig] = useState<LocalEngineConfig>(
+    DEFAULT_ENGINE_CONFIG
+  );
 
   const isLoading =
     appState === AppState.GENERATING || appState === AppState.REFINING;
@@ -59,12 +47,12 @@ const App: React.FC = () => {
         });
       }, 2500);
 
-<<<<<<< HEAD
       try {
         const generatedImages = await generateInitialImages(
           prompt,
           aspectRatio,
-          temperature
+          temperature,
+          engineConfig
         );
         const formattedImages: GeneratedImage[] = generatedImages.map(
           (src, index) => ({
@@ -84,30 +72,11 @@ const App: React.FC = () => {
     },
     []
   );
-=======
-    try {
-      const generatedImages = await generateInitialImages(prompt, aspectRatio, temperature, engineConfig);
-      const formattedImages: GeneratedImage[] = generatedImages.map((src, index) => ({
-        id: `img-${Date.now()}-${index}`,
-        src: src.startsWith('data:') ? src : `data:image/png;base64,${src}`,
-      }));
-      setImages(formattedImages);
-      setAppState(AppState.RESULTS);
-    } catch (err) {
-      console.error(err);
-      setError('No se pudieron generar imágenes con el motor local. Verifica que el servicio esté disponible e inténtalo de nuevo.');
-      setAppState(AppState.INITIAL);
-    } finally {
-      clearInterval(intervalId);
-    }
-  }, [engineConfig]);
->>>>>>> 076992c1cb9c54ec143db2372bef070eb5b27f29
 
   const selectedImages = useMemo(() => {
     return images.filter((img) => selectedImageIds.includes(img.id));
   }, [images, selectedImageIds]);
 
-<<<<<<< HEAD
   const handleRefine = useCallback(
     async (refinePrompt: string) => {
       if (selectedImages.length === 0 || !refinePrompt) {
@@ -116,18 +85,10 @@ const App: React.FC = () => {
         );
         return;
       }
-=======
-  const handleRefine = useCallback(async (refinePrompt: string) => {
-    if (selectedImages.length === 0 || !refinePrompt) {
-      setError('Selecciona al menos una imagen y proporciona un mensaje de refinado.');
-      return;
-    }
->>>>>>> 076992c1cb9c54ec143db2372bef070eb5b27f29
 
       setAppState(AppState.REFINING);
       setError(null);
 
-<<<<<<< HEAD
       const intervalId = setInterval(() => {
         setLoadingMessage((prev) => {
           const currentIndex = LOADING_MESSAGES.indexOf(prev);
@@ -139,7 +100,8 @@ const App: React.FC = () => {
         const baseImageSrcs = selectedImages.map((img) => img.src);
         const refinedImageSrcs = await refineImages(
           baseImageSrcs,
-          refinePrompt
+          refinePrompt,
+          engineConfig
         );
         const formattedImages: GeneratedImage[] = refinedImageSrcs.map(
           (src, index) => ({
@@ -160,33 +122,6 @@ const App: React.FC = () => {
     },
     [selectedImages]
   );
-=======
-    const intervalId = setInterval(() => {
-      setLoadingMessage(prev => {
-        const currentIndex = LOADING_MESSAGES.indexOf(prev);
-        return LOADING_MESSAGES[(currentIndex + 1) % LOADING_MESSAGES.length];
-      });
-    }, 2500);
-
-    try {
-      const baseImageSrcs = selectedImages.map(img => img.src);
-      const refinedImageSrcs = await refineImages(baseImageSrcs, refinePrompt, engineConfig);
-      const formattedImages: GeneratedImage[] = refinedImageSrcs.map((src, index) => ({
-        id: `img-refined-${Date.now()}-${index}`,
-        src: src.startsWith('data:') ? src : `data:image/png;base64,${src}`,
-      }));
-      setImages(formattedImages);
-      setSelectedImageIds([]);
-      setAppState(AppState.RESULTS);
-    } catch (err) {
-      console.error(err);
-      setError('No se pudieron refinar las imágenes con el motor local. Revisa el servicio y vuelve a intentarlo.');
-      setAppState(AppState.RESULTS);
-    } finally {
-      clearInterval(intervalId);
-    }
-  }, [engineConfig, selectedImages]);
->>>>>>> 076992c1cb9c54ec143db2372bef070eb5b27f29
 
   const handleReset = () => {
     setAppState(AppState.INITIAL);
@@ -246,12 +181,8 @@ const App: React.FC = () => {
             />
           )}
 
-<<<<<<< HEAD
           {(appState === AppState.RESULTS ||
             appState === AppState.REFINING) && (
-=======
-          {(appState === AppState.RESULTS || appState === AppState.REFINING) && (
->>>>>>> 076992c1cb9c54ec143db2372bef070eb5b27f29
             <>
               <ImageGrid
                 images={images}
