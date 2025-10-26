@@ -196,21 +196,21 @@ async def generate_images(payload: Dict[str, Any] = Body(...)):
 
         logger.info(f"Starting image generation - Prompt: {prompt[:50]}..., Aspect Ratio: {aspect_ratio}, Steps: {OPTIMIZED_STEPS}")
 
-        # Map aspect ratio to SD dimensions
+        # Map aspect ratio to VRAM-safe SD dimensions for 4GB GPUs
         ratios = {
-            "1:1": (512, 512),
-            "9:16": (512, 912),
-            "16:9": (912, 512),
-            "3:4": (512, 680),
-            "4:3": (680, 512),
+            "Auto": (640, 640),
+            "1:1": (640, 640),
+            "9:16": (512, 896),
+            "16:9": (896, 512),
+            "3:4": (576, 768),
+            "4:3": (768, 576),
             "3:2": (768, 512),
             "2:3": (512, 768),
             "5:4": (640, 512),
             "4:5": (512, 640),
-            "21:9": (1152, 512),
-            "Auto": (512, 512),
+            "21:9": (960, 416),
         }
-        width, height = ratios.get(aspect_ratio, (512, 512))
+        width, height = ratios.get(aspect_ratio, (640, 640))
 
         # Generate images with optimized parameters
         guidance_scale = OPTIMIZED_GUIDANCE_SCALE  # Use optimized fixed value instead of temperature mapping
