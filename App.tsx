@@ -271,8 +271,8 @@ const App: React.FC = () => {
           )}
 
           {appState === AppState.INITIAL && (
-            <div className="flex justify-center items-stretch h-[calc(100vh-220px)] fade-in-up">
-              <div className="flex w-full max-w-5xl">
+            <div className="flex justify-center items-center h-[calc(100vh-260px)] fade-in-up">
+              <div className="w-full max-w-6xl px-2">
                 <PromptForm
                   onSubmit={handleGenerate}
                   isLoading={isLoading}
