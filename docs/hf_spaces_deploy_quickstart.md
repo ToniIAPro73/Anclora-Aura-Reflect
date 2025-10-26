@@ -20,7 +20,7 @@ El proceso:
 - Orígenes de tu frontend (CORS), p. ej.:
   - `http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082`
 
-## Comando único (npm), lecturas de .env
+## Comando único (npm), lecturas de .env y autoderivación
 
 Puedes desplegar con un único comando multiplataforma que lee variables desde `.env.local` y `.env` automáticamente:
 
@@ -29,21 +29,22 @@ Puedes desplegar con un único comando multiplataforma que lee variables desde `
 $env:HF_TOKEN="hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 # opcional si ya tienes VITE_CLOUD_ENGINE_URL en .env.local:
 $env:SPACE_ID="ToniBalles73/Anclora"
-$env:ORIGINS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
+# ORIGINS es opcional: si no lo defines, se derivará de vite.config.ts (server.port) y se añadirán defaults.
 npm run deploy:space
 
 # Linux/macOS
 export HF_TOKEN="hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 # opcional si ya tienes VITE_CLOUD_ENGINE_URL en .env.local:
 export SPACE_ID="ToniBalles73/Anclora"
-export ORIGINS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
+# ORIGINS es opcional: si no lo defines, se derivará de vite.config.ts (server.port) y se añadirán defaults.
 npm run deploy:space
 ```
 
 El script `scripts/deploy_space.mjs`:
 - Carga `.env.local` y `.env`.
-- Usa `HF_TOKEN` y `SPACE_ID`; si `SPACE_ID` no está definido, lo deriva de `VITE_CLOUD_ENGINE_URL` (ej. `https://ToniBalles73-Anclora.hf.space` → `ToniBalles73/Anclora`).
-- Usa `ORIGINS` si está definido; si no, aplica valores por defecto para localhost.
+- Deriva `SPACE_ID` de `VITE_CLOUD_ENGINE_URL` si no está definido (ej. `https://ToniBalles73-Anclora.hf.space` → `ToniBalles73/Anclora`).
+- Deriva `ORIGINS` automáticamente leyendo el puerto del dev server en `vite.config.ts` (`server.port`) y siempre añade los puertos comunes de Vite (5173), formando:
+  - `http://localhost:<puerto>, http://127.0.0.1:<puerto>, http://localhost:5173, http://127.0.0.1:5173`
 - Llama a `scripts/hf_space_deploy.py` con esos parámetros.
 
 Comandos específicos por sistema (si prefieres):

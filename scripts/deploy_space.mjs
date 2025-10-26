@@ -32,12 +32,36 @@ const deriveSpaceIdFromCloudUrl = (url) => {
   }
 };
 
+const deriveDevOrigins = () => {
+  const viteConfigPath = path.resolve(root, 'vite.config.ts');
+  const ports = new Set();
+  if (fs.existsSync(viteConfigPath)) {
+    try {
+      const content = fs.readFileSync(viteConfigPath, 'utf8');
+      const match = content.match(/server:\s*{[^}]*port:\s*(\d+)/m) || content.match(/port:\s*(\d+)/m);
+      if (match) {
+        const port = parseInt(match[1], 10);
+        if (Number.isFinite(port) && port > 0) ports.add(port);
+      }
+    } catch {}
+  }
+  // Always include common Vite default
+  ports.add(5173);
+  const urls = new Set();
+  for (const p of ports) {
+    urls.add(`http://localhost:${p}`);
+    urls.add(`http://127.0.0.1:${p}`);
+  }
+  return Array.from(urls).join(',');
+};
+
 const token = process.env.HF_TOKEN || process.env.HUGGINGFACEHUB_API_TOKEN;
 let spaceId = process.env.SPACE_ID;
 let origins = process.env.ORIGINS;
 
 if (!origins || !origins.trim()) {
-  origins = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082';
+  origins = deriveDevOrigins();
+  console.log(`Derived ORIGINS from vite.config.ts/defaults: ${origins}`);
 }
 
 if (!spaceId || !spaceId.trim()) {
@@ -57,19 +81,17 @@ const printUsage = () => {
   console.log('  Ensure the following environment variables are set (either in your shell or .env/.env.local):');
   console.log('    - HF_TOKEN (required)');
   console.log('    - SPACE_ID (required) — can be derived automatically from VITE_CLOUD_ENGINE_URL');
-  console.log('    - ORIGINS (optional) — defaults to common localhost dev URLs');
+  console.log('    - ORIGINS (optional) — auto-derived from vite.config.ts or defaults to localhost ports');
   console.log('');
   console.log('Examples:');
   console.log('  Windows (PowerShell):');
-  console.log('    $env:HF_TOKEN=\"hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"");
-  console.log('    $env:SPACE_ID=\"ToniBalles73/Anclora\"');
-  console.log('    $env:ORIGINS=\"http://localhost:5173,http://127.0.0.1:5173\"');
+  console.log('    $env:HF_TOKEN="hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"');
+  console.log('    $env:SPACE_ID="ToniBalles73/Anclora"');
   console.log('    npm run deploy:space');
   console.log('');
   console.log('  Linux/macOS (bash):');
-  console.log('    export HF_TOKEN=\"hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"');
-  console.log('    export SPACE_ID=\"ToniBalles73/Anclora\"');
-  console.log('    export ORIGINS=\"http://localhost:5173,http://127.0.0.1:5173\"');
+  console.log('    export HF_TOKEN="hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"');
+  console.log('    export SPACE_ID="ToniBalles73/Anclora"');
   console.log('    npm run deploy:space');
 };
 
