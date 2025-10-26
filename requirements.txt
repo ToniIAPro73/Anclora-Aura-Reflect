@@ -1,0 +1,9 @@
+diffusers>=0.29.0
+transformers>=4.46.0
+torch>=2.5.1
+safetensors>=0.4.5
+accelerate>=0.34.2
+huggingface-hub>=0.25.0
+Pillow>=10.4.0
+# Optional acceleration extras (install manually if supported)
+# xformers>=0.0.27

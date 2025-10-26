@@ -6,7 +6,7 @@
 
 A React-based moodboard generator using local AI models for text-to-image and image-to-text.
 
-## Run Locally
+## Requisitos previos
 
 **Prerequisites:** Node.js, Python 3.8+
 
