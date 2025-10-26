@@ -307,6 +307,14 @@ async def benchmark_system():
             "device": device
         }
 
+@app.get("/")
+async def root():
+    return {
+        "status": "ok",
+        "message": "Aura Reflect FastAPI backend is running",
+        "endpoints": ["/health", "/generate", "/refine", "/benchmark"]
+    }
+
 @app.post("/refine")
 async def refine_images(payload: Dict[str, Any] = Body(...)):
     try:
