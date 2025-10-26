@@ -107,7 +107,7 @@ def main() -> int:
         print(f"ERROR: Could not create/ensure Space: {exc}")
         return 3
 
-    # Upload Dockerfile, app.py and requirements.txt to Space root
+    # Upload Dockerfile, app.py, requirements.txt, and backend/ to Space root
     try:
         api.upload_file(
             path_or_fileobj=str(ROOT / "Dockerfile"),
@@ -127,7 +127,17 @@ def main() -> int:
             path_in_repo="requirements.txt",
             repo_type="space",
         )
-        print("Uploaded Dockerfile, app.py and requirements.txt to Space.")
+        # Upload backend folder containing FastAPI app
+        backend_dir = ROOT / "backend"
+        if not backend_dir.exists():
+            raise FileNotFoundError(f"Missing backend folder at {backend_dir}")
+        api.upload_folder(
+            repo_id=args.space_id,
+            folder_path=str(backend_dir),
+            path_in_repo="backend",
+            repo_type="space",
+        )
+        print("Uploaded Dockerfile, app.py, requirements.txt, and backend/ to Space.")
     except Exception as exc:
         print(f"ERROR: Upload failed: {exc}")
         return 4
