@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
-import { LocalEngineConfig } from '../types';
+import { LocalEngineConfig, EngineMode } from '../types';
 
 interface PromptFormProps {
   onSubmit: (prompt: string, aspectRatio: string, temperature: number) => void;
   isLoading: boolean;
   engineConfig: LocalEngineConfig;
   onConfigChange: (config: LocalEngineConfig) => void;
+  engineMode: EngineMode;
+  onEngineModeChange: (mode: EngineMode) => void;
 }
 
 const ASPECT_RATIOS = ['Auto', '1:1', '9:16', '16:9', '3:4', '4:3', '3:2', '2:3', '5:4', '4:5', '21:9'];
 
-const PromptForm: React.FC<PromptFormProps> = ({ onSubmit, isLoading, engineConfig, onConfigChange }) => {
+const PromptForm: React.FC<PromptFormProps> = ({ onSubmit, isLoading, engineConfig, onConfigChange, engineMode, onEngineModeChange }) => {
   const [prompt, setPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState('Auto');
   const [temperature, setTemperature] = useState(1);
@@ -48,7 +50,26 @@ const PromptForm: React.FC<PromptFormProps> = ({ onSubmit, isLoading, engineConf
             disabled={isLoading}
           />
         </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="engineMode" className="block text-lg font-medium text-gray-300 mb-2">
+              Motor de generación
+            </label>
+            <select
+              id="engineMode"
+              name="engineMode"
+              className="w-full bg-black/30 border border-purple-500/30 rounded-lg p-3 text-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition duration-200"
+              value={engineMode}
+              onChange={(e) => onEngineModeChange(e.target.value as EngineMode)}
+              disabled={isLoading}
+            >
+              <option value={EngineMode.AUTO} className="bg-gray-900 text-white">Auto (fallback)</option>
+              <option value={EngineMode.LOCAL} className="bg-gray-900 text-white">Local</option>
+              <option value={EngineMode.CLOUD} className="bg-gray-900 text-white">Cloud</option>
+            </select>
+          </div>
+
           <div>
             <label htmlFor="aspectRatio" className="block text-lg font-medium text-gray-300 mb-2">
               Relación de Aspecto
@@ -68,6 +89,9 @@ const PromptForm: React.FC<PromptFormProps> = ({ onSubmit, isLoading, engineConf
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label htmlFor="temperature" className="block text-lg font-medium text-gray-300 mb-2">
               Temperatura ({temperature.toFixed(1)})

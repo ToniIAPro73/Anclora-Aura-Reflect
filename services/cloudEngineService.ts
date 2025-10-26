@@ -30,7 +30,7 @@ const buildConfigPayload = (config: LocalEngineConfig): LocalEngineConfig => {
   return payload;
 };
 
-const isCloudConfigured = (): boolean => {
+export const isCloudConfigured = (): boolean => {
   return Boolean(CLOUD_ENGINE_BASE_URL);
 };
 
@@ -102,4 +102,25 @@ export const refineImages = async (
   });
 
   return handleResponse(response);
+};
+
+export const getHealth = async (): Promise<{ ok: boolean; data?: any; error?: string }> => {
+  if (!isCloudConfigured()) {
+    return { ok: false, error: "Cloud engine URL not configured" };
+  }
+  try {
+    const response = await fetch(`${CLOUD_ENGINE_BASE_URL}/health`, {
+      method: "GET",
+      headers: {
+        "Accept": "application/json",
+      },
+    });
+    if (!response.ok) {
+      return { ok: false, error: `HTTP ${response.status}` };
+    }
+    const data = await response.json();
+    return { ok: true, data };
+  } catch (error: any) {
+    return { ok: false, error: error?.message ?? String(error) };
+  }
 };

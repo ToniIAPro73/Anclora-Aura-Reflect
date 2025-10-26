@@ -1,15 +1,14 @@
-import React, { useState, useCallback, useMemo } from "react";
-import { AppState, GeneratedImage, LocalEngineConfig } from "./types";
-import {
-  generateInitialImages,
-  refineImages,
-} from "./services/localEngineService";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { AppState, GeneratedImage, LocalEngineConfig, EngineMode } from "./types";
+import * as localEngine from "./services/localEngineService";
+import * as cloudEngine from "./services/cloudEngineService";
 import Header from "./components/Header";
 import PromptForm from "./components/PromptForm";
 import ImageGrid from "./components/ImageGrid";
 import Spinner from "./components/Spinner";
 import RefinePanel from "./components/RefinePanel";
 import Gallery from "./components/Gallery";
+import EngineStatus from "./components/EngineStatus";
 import { LOADING_MESSAGES } from "./constants";
 
 const DEFAULT_ENGINE_CONFIG: LocalEngineConfig = {
@@ -27,10 +26,12 @@ const App: React.FC = () => {
   const [loadingMessage, setLoadingMessage] = useState<string>(
     LOADING_MESSAGES[0]
   );
-  const [engineConfig, setEngineConfig] = useState<LocalEngineConfig>(
+  const [engineConfig, setEngineConfig] = useStat<<LocalEngineConfig>(
     DEFAULT_ENGINE_CONFIG
   );
-
+  const [engineMode, setEngineMode] = useStat<eEngineMode>(EngineMode.AUTO);
+  const [localHealth, setLocalHealth] = useState<{ ok: boolean; data?: any; error?: string } | null>(null);
+  const [cloudHealth, setCloudHealth] = use
   const isLoading =
     appState === AppState.GENERATING || appState === AppState.REFINING;
 
@@ -48,12 +49,31 @@ const App: React.FC = () => {
       }, 2500);
 
       try {
-        const generatedImages = await generateInitialImages(
-          prompt,
-          aspectRatio,
-          temperature,
-          engineConfig
-        );
+        let generatedImages: string[] = [];
+        if (engineMode === EngineMode.CLOUD) {
+          generatedImages = await cloudEngine.generateInitialImages(
+            prompt,
+            aspectRatio,
+            temperature,
+            engineConfig
+          );
+        } else if (engineMode === EngineMode.LOCAL) {
+          generatedImages = await localEngine.generateInitialImages(
+            prompt,
+            aspectRatio,
+            temperature,
+            engineConfig,
+            { disableFallback: true }
+          );
+        } else {
+          // Auto (fallback)
+          generatedImages = await localEngine.generateInitialImages(
+            prompt,
+            aspectRatio,
+            temperature,
+            engineConfig
+          );
+        }
         const formattedImages: GeneratedImage[] = generatedImages.map(
           (src, index) => ({
             id: `img-${Date.now()}-${index}`,
@@ -70,7 +90,7 @@ const App: React.FC = () => {
         clearInterval(intervalId);
       }
     },
-    []
+    [engineMode, engineConfig]
   );
 
   const selectedImages = useMemo(() => {
@@ -98,11 +118,28 @@ const App: React.FC = () => {
 
       try {
         const baseImageSrcs = selectedImages.map((img) => img.src);
-        const refinedImageSrcs = await refineImages(
-          baseImageSrcs,
-          refinePrompt,
-          engineConfig
-        );
+        let refinedImageSrcs: string[] = [];
+        if (engineMode === EngineMode.CLOUD) {
+          refinedImageSrcs = await cloudEngine.refineImages(
+            baseImageSrcs,
+            refinePrompt,
+            engineConfig
+          );
+        } else if (engineMode === EngineMode.LOCAL) {
+          refinedImageSrcs = await localEngine.refineImages(
+            baseImageSrcs,
+            refinePrompt,
+            engineConfig,
+            { disableFallback: true }
+          );
+        } else {
+          // Auto (fallback)
+          refinedImageSrcs = await localEngine.refineImages(
+            baseImageSrcs,
+            refinePrompt,
+            engineConfig
+          );
+        }
         const formattedImages: GeneratedImage[] = refinedImageSrcs.map(
           (src, index) => ({
             id: `img-refined-${Date.now()}-${index}`,
@@ -120,7 +157,7 @@ const App: React.FC = () => {
         clearInterval(intervalId);
       }
     },
-    [selectedImages]
+    [selectedImages, engineMode, engineConfig]
   );
 
   const handleReset = () => {
@@ -156,6 +193,30 @@ const App: React.FC = () => {
     });
   }, [selectedImages]);
 
+  // Health checks for local and cloud engines
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        const local = await localEngine.getHealth();
+        const cloud = await cloudEngine.getHealth();
+        if (!cancelled) {
+          setLocalHealth(local);
+          setCloudHealth(cloud);
+        }
+      } catch (e) {
+        // swallow
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen text-white font-sans flex flex-col items-center p-4">
       {isLoading && <Spinner message={loadingMessage} />}
@@ -173,12 +234,21 @@ const App: React.FC = () => {
           )}
 
           {appState === AppState.INITIAL && (
-            <PromptForm
-              onSubmit={handleGenerate}
-              isLoading={isLoading}
-              engineConfig={engineConfig}
-              onConfigChange={setEngineConfig}
-            />
+            <>
+              <EngineStatus
+                engineMode={engineMode}
+                localStatus={localHealth ?? undefined}
+                cloudStatus={cloudHealth ?? undefined}
+              />
+              <PromptForm
+                onSubmit={handleGenerate}
+                isLoading={isLoading}
+                engineConfig={engineConfig}
+                onConfigChange={setEngineConfig}
+                engineMode={engineMode}
+                onEngineModeChange={setEngineMode}
+              />
+            </>
           )}
 
           {(appState === AppState.RESULTS ||

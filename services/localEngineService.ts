@@ -11,6 +11,24 @@ const CLOUD_ENGINE_BASE_URL = (
 
 const canUseCloudFallback = (): boolean => Boolean(CLOUD_ENGINE_BASE_URL);
 
+export const getHealth = async (): Promise<{ ok: boolean; data?: any; error?: string }> => {
+  try {
+    const response = await fetch(`${LOCAL_ENGINE_BASE_URL}/health`, {
+      method: "GET",
+      headers: {
+        "Accept": "application/json",
+      },
+    });
+    if (!response.ok) {
+      return { ok: false, error: `HTTP ${response.status}` };
+    }
+    const data = await response.json();
+    return { ok: true, data };
+  } catch (error: any) {
+    return { ok: false, error: error?.message ?? String(error) };
+  }
+};
+
 const dataUrlToBase64 = (dataUrl: string): string => {
   const parts = dataUrl.split(",");
   return parts.length > 1 ? parts[1] : dataUrl;
@@ -57,7 +75,8 @@ export const generateInitialImages = async (
   prompt: string,
   aspectRatio: string,
   temperature: number,
-  config: LocalEngineConfig
+  config: LocalEngineConfig,
+  options?: { disableFallback?: boolean }
 ): Promise<string[]> => {
   const payload = {
     prompt,
@@ -76,7 +95,7 @@ export const generateInitialImages = async (
 
     return await handleResponse(response);
   } catch (error) {
-    if (canUseCloudFallback()) {
+    if (!options?.disableFallback && canUseCloudFallback()) {
       // Fallback to cloud engine
       return cloudEngine.generateInitialImages(prompt, aspectRatio, temperature, config);
     }
@@ -87,7 +106,8 @@ export const generateInitialImages = async (
 export const refineImages = async (
   baseImages: string[],
   refinePrompt: string,
-  config: LocalEngineConfig
+  config: LocalEngineConfig,
+  options?: { disableFallback?: boolean }
 ): Promise<string[]> => {
   const payload = {
     refinePrompt,
@@ -106,7 +126,7 @@ export const refineImages = async (
 
     return await handleResponse(response);
   } catch (error) {
-    if (canUseCloudFallback()) {
+    if (!options?.disableFallback && canUseCloudFallback()) {
       // Fallback to cloud engine
       return cloudEngine.refineImages(baseImages, refinePrompt, config);
     }

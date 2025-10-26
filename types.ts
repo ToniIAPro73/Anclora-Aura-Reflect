@@ -6,6 +6,12 @@ export enum AppState {
   GALLERY,
 }
 
+export enum EngineMode {
+  AUTO = 'AUTO',
+  LOCAL = 'LOCAL',
+  CLOUD = 'CLOUD',
+}
+
 export type GeneratedImage = {
   id: string;
   src: string;
