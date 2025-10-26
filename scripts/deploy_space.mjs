@@ -1,43 +1,84 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import fs from 'node:fs';
+import dotenv from 'dotenv';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, '..');
 
+const envFiles = [path.resolve(root, '.env.local'), path.resolve(root, '.env')];
+for (const file of envFiles) {
+  if (fs.existsSync(file)) {
+    dotenv.config({ path: file });
+  }
+}
+
 const pythonScript = path.resolve(root, 'scripts', 'hf_space_deploy.py');
 
+const deriveSpaceIdFromCloudUrl = (url) => {
+  try {
+    const u = new URL(url);
+    const host = u.hostname; // e.g., ToniBalles73-Anclora.hf.space
+    const firstLabel = host.split('.')[0];
+    if (!firstLabel || !firstLabel.includes('-')) return null;
+    const [owner, ...repoParts] = firstLabel.split('-');
+    const repo = repoParts.join('-');
+    if (!owner || !repo) return null;
+    return `${owner}/${repo}`;
+  } catch {
+    return null;
+  }
+};
+
 const token = process.env.HF_TOKEN || process.env.HUGGINGFACEHUB_API_TOKEN;
-const spaceId = process.env.SPACE_ID;
-const origins = process.env.ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173';
+let spaceId = process.env.SPACE_ID;
+let origins = process.env.ORIGINS;
+
+if (!origins || !origins.trim()) {
+  origins = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082';
+}
+
+if (!spaceId || !spaceId.trim()) {
+  const cloudUrl = process.env.VITE_CLOUD_ENGINE_URL;
+  const derived = cloudUrl ? deriveSpaceIdFromCloudUrl(cloudUrl) : null;
+  if (derived) {
+    spaceId = derived;
+    console.log(`Derived SPACE_ID from VITE_CLOUD_ENGINE_URL: ${spaceId}`);
+  }
+}
 
 const isWin = process.platform === 'win32';
 const pythonExe = process.env.PYTHON || process.env.DIFFUSION_PYTHON_PATH || (isWin ? 'python' : 'python3');
 
 const printUsage = () => {
   console.log('Usage:');
-  console.log('  Set the following environment variables before running this script:');
+  console.log('  Ensure the following environment variables are set (either in your shell or .env/.env.local):');
   console.log('    - HF_TOKEN (required)');
-  console.log('    - SPACE_ID (required), e.g. ToniBalles73/Anclora');
-  console.log('    - ORIGINS (optional), e.g. http://localhost:5173,http://127.0.0.1:5173');
+  console.log('    - SPACE_ID (required) — can be derived automatically from VITE_CLOUD_ENGINE_URL');
+  console.log('    - ORIGINS (optional) — defaults to common localhost dev URLs');
   console.log('');
   console.log('Examples:');
   console.log('  Windows (PowerShell):');
-  console.log('    $env:HF_TOKEN="hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"');
-  console.log('    $env:SPACE_ID="ToniBalles73/Anclora"');
-  console.log('    $env:ORIGINS="http://localhost:5173,http://127.0.0.1:5173"');
+  console.log('    $env:HF_TOKEN=\"hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"");
+  console.log('    $env:SPACE_ID=\"ToniBalles73/Anclora\"');
+  console.log('    $env:ORIGINS=\"http://localhost:5173,http://127.0.0.1:5173\"');
   console.log('    npm run deploy:space');
   console.log('');
   console.log('  Linux/macOS (bash):');
-  console.log('    export HF_TOKEN="hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"');
-  console.log('    export SPACE_ID="ToniBalles73/Anclora"');
-  console.log('    export ORIGINS="http://localhost:5173,http://127.0.0.1:5173"');
+  console.log('    export HF_TOKEN=\"hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"');
+  console.log('    export SPACE_ID=\"ToniBalles73/Anclora\"');
+  console.log('    export ORIGINS=\"http://localhost:5173,http://127.0.0.1:5173\"');
   console.log('    npm run deploy:space');
 };
 
 if (!token || !spaceId) {
   console.error('ERROR: Missing required environment variables.');
+  console.error(`HF_TOKEN present: ${Boolean(token)}; SPACE_ID present: ${Boolean(spaceId)}`);
+  if (process.env.VITE_CLOUD_ENGINE_URL) {
+    console.error(`Found VITE_CLOUD_ENGINE_URL=${process.env.VITE_CLOUD_ENGINE_URL} but unable to derive SPACE_ID.`);
+  }
   printUsage();
   process.exit(2);
 }

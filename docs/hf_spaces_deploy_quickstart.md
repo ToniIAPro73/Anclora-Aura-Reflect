@@ -20,53 +20,42 @@ El proceso:
 - Orígenes de tu frontend (CORS), p. ej.:
   - `http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082`
 
-## Paso a paso — Windows PowerShell
+## Comando único (npm), lecturas de .env
 
-1) En la raíz del proyecto, inicializa el token en el entorno:
-```powershell
-$env:HF_TOKEN = "hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-```
+Puedes desplegar con un único comando multiplataforma que lee variables desde `.env.local` y `.env` automáticamente:
 
-2) Ejecuta el script de despliegue con tu Space ID (ejemplo con ToniBalles73/Anclora):
-```powershell
-python scripts\hf_space_deploy.py --space-id "ToniBalles73/Anclora" --origins "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
-```
-- Alternativa: pasar el token directamente:
-```powershell
-python scripts\hf_space_deploy.py --space-id "ToniBalles73/Anclora" --token "hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" --origins "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
-```
-
-3) El script:
-- Crea/reutiliza el Space (SDK = docker).
-- Sube `Dockerfile`, `app.py`, `requirements.txt` y el directorio `backend/`.
-- Intenta definir secretos:
-  - `ALLOW_ORIGINS` = tus dominios frontend.
-  - `HUGGINGFACEHUB_API_TOKEN` = tu token HF (descargas de modelos con licencia).
-- Escribe `VITE_CLOUD_ENGINE_URL` en `.env.local`.
-
-4) Ve a tu Space:
-- URL: `https://<usuario>-<nombre>.hf.space` (ej.: `https://ToniBalles73-Anclora.hf.space`)
-- Espera a que termine el build y el contenedor arranque.
-
-## Paso a paso — Linux/macOS
-
-1) En la raíz del proyecto, exporta el token:
 ```bash
+# Windows (PowerShell)
+$env:HF_TOKEN="hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+# opcional si ya tienes VITE_CLOUD_ENGINE_URL en .env.local:
+$env:SPACE_ID="ToniBalles73/Anclora"
+$env:ORIGINS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
+npm run deploy:space
+
+# Linux/macOS
 export HF_TOKEN="hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+# opcional si ya tienes VITE_CLOUD_ENGINE_URL en .env.local:
+export SPACE_ID="ToniBalles73/Anclora"
+export ORIGINS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
+npm run deploy:space
 ```
 
-2) Ejecuta el script:
-```bash
-python3 scripts/hf_space_deploy.py --space-id "ToniBalles73/Anclora" --origins "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
-```
-- Alternativa:
-```bash
-python3 scripts/hf_space_deploy.py --space-id "ToniBalles73/Anclora" --token "hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" --origins "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
-```
+El script `scripts/deploy_space.mjs`:
+- Carga `.env.local` y `.env`.
+- Usa `HF_TOKEN` y `SPACE_ID`; si `SPACE_ID` no está definido, lo deriva de `VITE_CLOUD_ENGINE_URL` (ej. `https://ToniBalles73-Anclora.hf.space` → `ToniBalles73/Anclora`).
+- Usa `ORIGINS` si está definido; si no, aplica valores por defecto para localhost.
+- Llama a `scripts/hf_space_deploy.py` con esos parámetros.
 
-3) Verifica el Space:
-- `https://ToniBalles73-Anclora.hf.space/health`
-- Debe devolver JSON con `{ status, device, model, optimizations }`.
+Comandos específicos por sistema (si prefieres):
+- `npm run deploy:space:win`
+- `npm run deploy:space:unix`
+
+## Verificar
+
+- URL del Space: `https://<usuario>-<space>.hf.space` (ej. `https://ToniBalles73-Anclora.hf.space`)
+- Abre `/health` para comprobar el estado.
+- Reinicia el frontend para aplicar `.env.local`.
+- En la UI, usa “Cloud” o “Auto (fallback)” en el selector de motor.
 
 ## Variables y rendimiento (en el Space)
 
@@ -88,24 +77,11 @@ Hardware (Settings → Hardware):
 - CPU (gratis): funciona; el frontend enviará `resolution="standard"`.
 - GPU (de pago): activa CUDA; el frontend enviará `resolution="high"` (1024-wide).
 
-## Frontend
-
-Tras el despliegue:
-- `.env.local` se actualizará automáticamente con:
-  - `VITE_CLOUD_ENGINE_URL=https://ToniBalles73-Anclora.hf.space`
-- Reinicia el servidor Vite:
-  ```bash
-  npm run dev
-  ```
-- En la UI, selecciona:
-  - “Cloud” para forzar cloud.
-  - “Auto (fallback)” para usar local y caer a cloud si local falla.
-
 ## Actualización del Space
 
 Cada vez que cambies el backend:
 ```bash
-python scripts\hf_space_deploy.py --space-id "ToniBalles73/Anclora" --origins "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
+npm run deploy:space
 ```
 - El Space reconstruirá la imagen y aplicará cambios.
 
@@ -128,4 +104,5 @@ python scripts\hf_space_deploy.py --space-id "ToniBalles73/Anclora" --origins "h
 
 - Guía Docker + FastAPI: [`docs/cloud_deploy.md`](./cloud_deploy.md)
 - Script de despliegue: [`scripts/hf_space_deploy.py`](../scripts/hf_space_deploy.py)
+- Comando npm unificado: [`scripts/deploy_space.mjs`](../scripts/deploy_space.mjs)
 - Backend FastAPI: [`backend/app.py`](../backend/app.py)
