@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { EngineMode } from "../types";
 
 interface EngineStatusProps {
@@ -33,14 +33,16 @@ const Summ: React.FC<{ data?: any }> = ({ data }) => {
 };
 
 const EngineStatus: React.FC<EngineStatusProps> = ({ engineMode, localStatus, cloudStatus, localUrl, cloudUrl, onRefresh, refreshing }) => {
+  const [showDetails, setShowDetails] = useState(false);
+
   const modeLabel =
     engineMode === EngineMode.AUTO ? "Auto (fallback)" :
     engineMode === EngineMode.LOCAL ? "Local" :
     "Cloud";
 
   return (
-    <div className="w-full max-w-2xl mx-auto mb-4">
-      <div className="bg-black/20 border border-purple-500/20 rounded-xl p-4 flex flex-col gap-3">
+    <div className="w-full mx-auto mb-4">
+      <div className="bg-black/20 border border-purple-500/20 rounded-xl p-3 flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-300">
             Motor seleccionado: <span className="font-semibold text-purple-300">{modeLabel}</span>
@@ -62,25 +64,36 @@ const EngineStatus: React.FC<EngineStatusProps> = ({ engineMode, localStatus, cl
             >
               {refreshing ? "Checking..." : "Check health"}
             </button>
+            <button
+              type="button"
+              onClick={() => setShowDetails((prev) => !prev)}
+              className="text-xs px-2 py-1 rounded-md bg-gray-700/40 hover:bg-gray-700/60 border border-gray-600/40 text-gray-200"
+            >
+              {showDetails ? "Hide details" : "Details"}
+            </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-400">
           <div className="bg-black/10 rounded-md p-2 border border-purple-500/10">
             <div className="flex items-center justify-between mb-1">
-              <div className="font-semibold text-gray-300">Local info</div>
+              <div className="font-semibold text-gray-300">Local</div>
               <div className="text-[10px] text-gray-400">{localUrl || "-"}</div>
             </div>
             <Summ data={localStatus?.data} />
-            <pre className="mt-1 whitespace-pre-wrap break-all">{JSON.stringify(localStatus?.data ?? { status: localStatus?.ok ? "ok" : "unavailable" }, null, 2)}</pre>
+            {showDetails && (
+              <pre className="mt-1 whitespace-pre-wrap break-all">{JSON.stringify(localStatus?.data ?? { status: localStatus?.ok ? "ok" : "unavailable" }, null, 2)}</pre>
+            )}
           </div>
           <div className="bg-black/10 rounded-md p-2 border border-purple-500/10">
             <div className="flex items-center justify-between mb-1">
-              <div className="font-semibold text-gray-300">Cloud info</div>
+              <div className="font-semibold text-gray-300">Cloud</div>
               <div className="text-[10px] text-gray-400">{cloudUrl || "-"}</div>
             </div>
             <Summ data={cloudStatus?.data} />
-            <pre className="mt-1 whitespace-pre-wrap break-all">{JSON.stringify(cloudStatus?.data ?? { status: cloudStatus?.ok ? "ok" : "unavailable" }, null, 2)}</pre>
+            {showDetails && (
+              <pre className="mt-1 whitespace-pre-wrap break-all">{JSON.stringify(cloudStatus?.data ?? { status: cloudStatus?.ok ? "ok" : "unavailable" }, null, 2)}</pre>
+            )}
           </div>
         </div>
       </div>

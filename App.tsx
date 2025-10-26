@@ -217,14 +217,14 @@ const App: React.FC = () => {
   }, [runHealthCheck]);
 
   return (
-    <div className="min-h-screen text-white font-sans flex flex-col items-center p-4">
+    <div className="h-screen overflow-hidden text-white font-sans flex flex-col items-center p-4">
       {isLoading && <Spinner message={loadingMessage} />}
-      <div className="w-full max-w-7xl mx-auto">
+      <div className="w-full max-w-7xl mx-auto flex flex-col h-full">
         <Header />
-        <main>
+        <main className="flex-1">
           {error && (
             <div
-              className="bg-red-500/10 backdrop-blur-sm border border-red-500/30 text-red-300 px-4 py-3 rounded-lg relative text-center mb-6"
+              className="bg-red-500/10 backdrop-blur-sm border border-red-500/30 text-red-300 px-4 py-3 rounded-lg relative text-center mb-4"
               role="alert"
             >
               <strong className="font-bold">Error: </strong>
@@ -233,25 +233,29 @@ const App: React.FC = () => {
           )}
 
           {appState === AppState.INITIAL && (
-            <>
-              <EngineStatus
-                engineMode={engineMode}
-                localStatus={localHealth ?? undefined}
-                cloudStatus={cloudHealth ?? undefined}
-                localUrl={localUrl}
-                cloudUrl={cloudUrl}
-                onRefresh={runHealthCheck}
-                refreshing={refreshingHealth}
-              />
-              <PromptForm
-                onSubmit={handleGenerate}
-                isLoading={isLoading}
-                engineConfig={engineConfig}
-                onConfigChange={setEngineConfig}
-                engineMode={engineMode}
-                onEngineModeChange={setEngineMode}
-              />
-            </>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+              <div className="order-2 md:order-1">
+                <PromptForm
+                  onSubmit={handleGenerate}
+                  isLoading={isLoading}
+                  engineConfig={engineConfig}
+                  onConfigChange={setEngineConfig}
+                  engineMode={engineMode}
+                  onEngineModeChange={setEngineMode}
+                />
+              </div>
+              <div className="order-1 md:order-2">
+                <EngineStatus
+                  engineMode={engineMode}
+                  localStatus={localHealth ?? undefined}
+                  cloudStatus={cloudHealth ?? undefined}
+                  localUrl={localUrl}
+                  cloudUrl={cloudUrl}
+                  onRefresh={runHealthCheck}
+                  refreshing={refreshingHealth}
+                />
+              </div>
+            </div>
           )}
 
           {(appState === AppState.RESULTS ||
