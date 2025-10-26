@@ -26,12 +26,16 @@ const App: React.FC = () => {
   const [loadingMessage, setLoadingMessage] = useState<string>(
     LOADING_MESSAGES[0]
   );
-  const [engineConfig, setEngineConfig] = useStat<<LocalEngineConfig>(
+  const [engineConfig, setEngineConfig] = useState<LocalEngineConfig>(
     DEFAULT_ENGINE_CONFIG
   );
-  const [engineMode, setEngineMode] = useStat<eEngineMode>(EngineMode.AUTO);
+  const [engineMode, setEngineMode] = useState<EngineMode>(EngineMode.AUTO);
   const [localHealth, setLocalHealth] = useState<{ ok: boolean; data?: any; error?: string } | null>(null);
-  const [cloudHealth, setCloudHealth] = use
+  const [cloudHealth, setCloudHealth] = useState<{ ok: boolean; data?: any; error?: string } | null>(null);
+  const [refreshingHealth, setRefreshingHealth] = useState<boolean>(false);
+
+  const localUrl = (import.meta.env.VITE_LOCAL_ENGINE_URL ?? "http://localhost:8000").replace(/\/$/, "");
+  const cloudUrl = (import.meta.env.VITE_CLOUD_ENGINE_URL ?? "").replace(/\/$/, "");
   const isLoading =
     appState === AppState.GENERATING || appState === AppState.REFINING;
 
@@ -193,29 +197,24 @@ const App: React.FC = () => {
     });
   }, [selectedImages]);
 
-  // Health checks for local and cloud engines
-  useEffect(() => {
-    let cancelled = false;
-
-    const run = async () => {
-      try {
-        const local = await localEngine.getHealth();
-        const cloud = await cloudEngine.getHealth();
-        if (!cancelled) {
-          setLocalHealth(local);
-          setCloudHealth(cloud);
-        }
-      } catch (e) {
-        // swallow
-      }
-    };
-
-    run();
-
-    return () => {
-      cancelled = true;
-    };
+  const runHealthCheck = useCallback(async () => {
+    setRefreshingHealth(true);
+    try {
+      const [local, cloud] = await Promise.all([
+        localEngine.getHealth(),
+        cloudEngine.getHealth(),
+      ]);
+      setLocalHealth(local);
+      setCloudHealth(cloud);
+    } finally {
+      setRefreshingHealth(false);
+    }
   }, []);
+
+  // Initial health checks for local and cloud engines
+  useEffect(() => {
+    runHealthCheck().catch(() => {});
+  }, [runHealthCheck]);
 
   return (
     <div className="min-h-screen text-white font-sans flex flex-col items-center p-4">
@@ -239,6 +238,10 @@ const App: React.FC = () => {
                 engineMode={engineMode}
                 localStatus={localHealth ?? undefined}
                 cloudStatus={cloudHealth ?? undefined}
+                localUrl={localUrl}
+                cloudUrl={cloudUrl}
+                onRefresh={runHealthCheck}
+                refreshing={refreshingHealth}
               />
               <PromptForm
                 onSubmit={handleGenerate}
