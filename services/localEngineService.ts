@@ -1,9 +1,11 @@
-import { LocalEngineConfig } from '../types';
+import { LocalEngineConfig } from "../types";
 
-const LOCAL_ENGINE_BASE_URL = (import.meta.env.VITE_LOCAL_ENGINE_URL ?? 'http://localhost:5000').replace(/\/$/, '');
+const LOCAL_ENGINE_BASE_URL = (
+  import.meta.env.VITE_LOCAL_ENGINE_URL ?? "http://localhost:8000"
+).replace(/\/$/, "");
 
 const dataUrlToBase64 = (dataUrl: string): string => {
-  const parts = dataUrl.split(',');
+  const parts = dataUrl.split(",");
   return parts.length > 1 ? parts[1] : dataUrl;
 };
 
@@ -14,11 +16,14 @@ const buildConfigPayload = (config: LocalEngineConfig): LocalEngineConfig => {
     payload.modelPath = config.modelPath.trim();
   }
 
-  if (typeof config.steps === 'number' && !Number.isNaN(config.steps)) {
+  if (typeof config.steps === "number" && !Number.isNaN(config.steps)) {
     payload.steps = config.steps;
   }
 
-  if (typeof config.guidanceScale === 'number' && !Number.isNaN(config.guidanceScale)) {
+  if (
+    typeof config.guidanceScale === "number" &&
+    !Number.isNaN(config.guidanceScale)
+  ) {
     payload.guidanceScale = config.guidanceScale;
   }
 
@@ -28,12 +33,14 @@ const buildConfigPayload = (config: LocalEngineConfig): LocalEngineConfig => {
 const handleResponse = async (response: Response) => {
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || `Local engine request failed with status ${response.status}`);
+    throw new Error(
+      errorText || `Local engine request failed with status ${response.status}`
+    );
   }
 
   const data = await response.json();
   if (!Array.isArray(data.images)) {
-    throw new Error('Local engine response missing images array.');
+    throw new Error("Local engine response missing images array.");
   }
 
   return data.images as string[];
@@ -43,7 +50,7 @@ export const generateInitialImages = async (
   prompt: string,
   aspectRatio: string,
   temperature: number,
-  config: LocalEngineConfig,
+  config: LocalEngineConfig
 ): Promise<string[]> => {
   const payload = {
     prompt,
@@ -53,9 +60,9 @@ export const generateInitialImages = async (
   };
 
   const response = await fetch(`${LOCAL_ENGINE_BASE_URL}/generate`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
   });
@@ -66,7 +73,7 @@ export const generateInitialImages = async (
 export const refineImages = async (
   baseImages: string[],
   refinePrompt: string,
-  config: LocalEngineConfig,
+  config: LocalEngineConfig
 ): Promise<string[]> => {
   const payload = {
     prompt: refinePrompt,
@@ -75,9 +82,9 @@ export const refineImages = async (
   };
 
   const response = await fetch(`${LOCAL_ENGINE_BASE_URL}/refine`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
   });
