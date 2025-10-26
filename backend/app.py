@@ -35,7 +35,7 @@ app = FastAPI()
 
 # Optimized configuration for RTX 3050 4GB
 NUM_IMAGES = 2
-OPTIMIZED_STEPS = 25  # Reduced from default 50 for 50% speed improvement
+OPTIMIZED_STEPS = 20  # Reduced from default 50 for 50% speed improvement
 OPTIMIZED_GUIDANCE_SCALE = 9  # Optimized balance of quality/speed
 
 # Add CORS middleware
@@ -146,8 +146,8 @@ async def generate_images(payload: Dict[str, Any] = Body(...)):
             "1:1": (512, 512),
             "9:16": (512, 912),
             "16:9": (912, 512),
-            "3:4": (512, 682),
-            "4:3": (682, 512),
+            "3:4": (512, 680),
+            "4:3": (680, 512),
             "3:2": (768, 512),
             "2:3": (512, 768),
             "5:4": (640, 512),
