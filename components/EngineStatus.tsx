@@ -12,10 +12,10 @@ interface EngineStatusProps {
 }
 
 const StatusBadge: React.FC<{ ok?: boolean }> = ({ ok }) => {
-  const color = ok ? "bg-green-500/20 border-green-400/40 text-green-300" : "bg-yellow-500/10 border-yellow-400/30 text-yellow-200";
+  const color = ok ? "bg-green-500/20 text-green-300" : "bg-yellow-500/10 text-yellow-200";
   const label = ok ? "Online" : "Unavailable";
   return (
-    <span className={`px-2 py-1 rounded-md text-xs border ${color}`}>{label}</span>
+    <span className={`status-pill text-xs ${color}`}>{label}</span>
   );
 };
 
@@ -42,10 +42,10 @@ const EngineStatus: React.FC<EngineStatusProps> = ({ engineMode, localStatus, cl
 
   return (
     <div className="w-full mx-auto mb-4">
-      <div className="bg-black/20 border border-purple-500/20 rounded-xl p-3 flex flex-col gap-3">
+      <div className="glass-card p-3 flex flex-col gap-3 h-full fade-in-up">
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-300">
-            Motor seleccionado: <span className="font-semibold text-purple-300">{modeLabel}</span>
+            Motor: <span className="font-semibold text-purple-300">{modeLabel}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2">
@@ -60,14 +60,14 @@ const EngineStatus: React.FC<EngineStatusProps> = ({ engineMode, localStatus, cl
               type="button"
               onClick={onRefresh}
               disabled={refreshing}
-              className="ml-2 text-xs px-2 py-1 rounded-md bg-purple-600/30 hover:bg-purple-600/40 border border-purple-500/30 text-purple-200 disabled:opacity-50"
+              className="ml-2 text-xs px-2 py-1 rounded-md btn-soft text-purple-200 disabled:opacity-50"
             >
               {refreshing ? "Checking..." : "Check health"}
             </button>
             <button
               type="button"
               onClick={() => setShowDetails((prev) => !prev)}
-              className="text-xs px-2 py-1 rounded-md bg-gray-700/40 hover:bg-gray-700/60 border border-gray-600/40 text-gray-200"
+              className="text-xs px-2 py-1 rounded-md btn-soft text-gray-200"
             >
               {showDetails ? "Hide details" : "Details"}
             </button>
@@ -75,7 +75,7 @@ const EngineStatus: React.FC<EngineStatusProps> = ({ engineMode, localStatus, cl
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-400">
-          <div className="bg-black/10 rounded-md p-2 border border-purple-500/10">
+          <div className="bg-black/10 rounded-md p-2 border border-white/10">
             <div className="flex items-center justify-between mb-1">
               <div className="font-semibold text-gray-300">Local</div>
               <div className="text-[10px] text-gray-400">{localUrl || "-"}</div>
@@ -85,7 +85,7 @@ const EngineStatus: React.FC<EngineStatusProps> = ({ engineMode, localStatus, cl
               <pre className="mt-1 whitespace-pre-wrap break-all">{JSON.stringify(localStatus?.data ?? { status: localStatus?.ok ? "ok" : "unavailable" }, null, 2)}</pre>
             )}
           </div>
-          <div className="bg-black/10 rounded-md p-2 border border-purple-500/10">
+          <div className="bg-black/10 rounded-md p-2 border border-white/10">
             <div className="flex items-center justify-between mb-1">
               <div className="font-semibold text-gray-300">Cloud</div>
               <div className="text-[10px] text-gray-400">{cloudUrl || "-"}</div>

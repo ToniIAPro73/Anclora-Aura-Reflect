@@ -1,0 +1,84 @@
+/* Aura Reflect custom aesthetics and micro-animations */
+
+/* Glassmorphism card */
+.glass-card {
+  backdrop-filter: blur(12px);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.03) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(88, 28, 135, 0.15);
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 56px rgba(88, 28, 135, 0.25);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Subtle hover glow for interactive surfaces */
+.hover-glow:hover {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 6px 28px rgba(124, 58, 237, 0.35);
+}
+
+/* Animated gradient shimmer on title */
+.title-shimmer {
+  background-size: 200% 200%;
+  animation: titleShimmer 6s ease-in-out infinite;
+}
+@keyframes titleShimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Hero glow under header, inspired by reflect.app */
+.hero-glow {
+  animation: heroGlow 8s ease-in-out infinite;
+}
+@keyframes heroGlow {
+  0%, 100% {
+    opacity: .25;
+    filter: blur(24px);
+    transform: translate(-50%, 0) scale(1);
+  }
+  50% {
+    opacity: .35;
+    filter: blur(28px);
+    transform: translate(-50%, -2px) scale(1.03);
+  }
+}
+
+/* Entrance animation for cards/content */
+.fade-in-up {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: fadeInUp 400ms ease forwards;
+}
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Soft buttons, modern ghost look */
+.btn-soft {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(6px);
+  transition: all 200ms ease;
+}
+.btn-soft:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+}
+
+/* Status pills */
+.status-pill {
+  border-radius: 10px;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+}
