@@ -33,10 +33,10 @@ const PromptForm: React.FC<PromptFormProps> = ({ onSubmit, isLoading, engineConf
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto bg-black/20 p-6 rounded-xl shadow-2xl border border-purple-500/20 backdrop-blur-lg">
+    <div className="w-full max-w-2xl mx-auto bg-black/20 p-4 rounded-xl shadow-2xl border border-purple-500/20 backdrop-blur-lg">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="prompt" className="block text-lg font-medium text-gray-300 mb-2">
+          <label htmlFor="prompt" className="block text-base font-medium text-gray-300 mb-2">
             Introduce una emoción, tema o idea
           </label>
           <textarea
