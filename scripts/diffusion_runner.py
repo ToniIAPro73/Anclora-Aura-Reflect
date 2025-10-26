@@ -40,6 +40,7 @@ from diffusers import (
     DPMSolverMultistepScheduler,
     EulerAncestralDiscreteScheduler,
     EulerDiscreteScheduler,
+    LCMScheduler,
     StableDiffusionImg2ImgPipeline,
     StableDiffusionPipeline,
 )
@@ -52,6 +53,7 @@ DEFAULT_IMG2IMG_MODEL = os.environ.get("SD_IMG2IMG_MODEL_ID", DEFAULT_TEXT_MODEL
 DEFAULT_PRECISION = os.environ.get("SD_PRECISION", "auto")
 DEFAULT_DEVICE = os.environ.get("SD_DEVICE", "auto")
 DEFAULT_SCHEDULER = os.environ.get("SD_SCHEDULER")
+DEFAULT_LCM_ADAPTER_ID = os.environ.get("SD_LCM_LORA_ID")
 
 SCHEDULER_REGISTRY = {
     "ddim": DDIMScheduler,
@@ -152,6 +154,33 @@ def _load_pipeline(mode: str, model_id: str, device: str, dtype: torch.dtype):
     else:
         pipeline = pipeline.to("cpu")
 
+    # Optional LCM-LoRA acceleration
+    if DEFAULT_LCM_ADAPTER_ID:
+        try:
+            pipeline.scheduler = LCMScheduler.from_config(pipeline.scheduler.config)
+            pipeline.load_lora_weights(DEFAULT_LCM_ADAPTER_ID)
+            try:
+                pipeline.fuse_lora()
+            except Exception:
+                pass
+            _log_debug(f"LCM-LoRA enabled: {DEFAULT_LCM_ADAPTER_ID}")
+        except Exception as exc:
+            _log_debug(f"Failed to enable LCM-LoRA: {exc}")
+
+    # Disable progress bars for speed
+    try:
+        pipeline.set_progress_bar_config(disable=True)
+    except Exception:
+        pass
+
+    # Optional torch.compile for UNet (PyTorch 2+)
+    if device == "cuda" and os.environ.get("TORCH_COMPILE", "0").lower() in {"1","true","yes"} and hasattr(torch, "compile"):
+        try:
+            pipeline.unet = torch.compile(pipeline.unet, mode="reduce-overhead")
+            _log_debug("torch.compile enabled for UNet")
+        except Exception as exc:
+            _log_debug(f"torch.compile failed: {exc}")
+
     PIPELINE_CACHE[cache_key] = pipeline
     return pipeline
 
@@ -229,6 +258,16 @@ def _handle_request(payload: Dict[str, Any]) -> DiffusionResponse:
     height = int(payload.get("height", 1024))
     guidance_scale = float(payload.get("guidance_scale", 7.5))
     steps = int(payload.get("num_inference_steps", 30))
+    # Adjust defaults for LCM-LoRA if enabled
+    if DEFAULT_LCM_ADAPTER_ID:
+        try:
+            steps = min(steps, int(os.environ.get("SD_STEPS", "8")))
+        except Exception:
+            steps = min(steps, 8)
+        try:
+            guidance_scale = float(os.environ.get("SD_GUIDANCE", "1.0"))
+        except Exception:
+            guidance_scale = 1.0
     num_images = int(payload.get("num_images", 2))
     precision = payload.get("precision", DEFAULT_PRECISION)
     device_pref = payload.get("device", DEFAULT_DEVICE)

@@ -18,7 +18,7 @@ EXPECTED PERFORMANCE:
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Any, Dict
-from diffusers import StableDiffusionPipeline
+from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler, LCMScheduler
 from transformers import BlipProcessor, BlipForConditionalGeneration
 import torch
 from PIL import Image
@@ -26,6 +26,7 @@ import base64
 import io
 import numpy as np
 import logging
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -34,9 +35,9 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 # Optimized configuration for RTX 3050 4GB
-NUM_IMAGES = 2
-OPTIMIZED_STEPS = 15  # Further reduced for speed (from 20)
-OPTIMIZED_GUIDANCE_SCALE = 7  # Lower for faster generation
+NUM_IMAGES = int(os.environ.get("SD_NUM_IMAGES", "2"))
+OPTIMIZED_STEPS = int(os.environ.get("SD_STEPS", "15"))  # env override
+OPTIMIZED_GUIDANCE_SCALE = float(os.environ.get("SD_GUIDANCE", "7"))  # env override
 
 # Add CORS middleware
 app.add_middleware(
@@ -48,22 +49,64 @@ app.add_middleware(
 )
 
 # Load models with optimizations
-device = "cuda" if torch.cuda.is_available() else "cpu"
+def _select_device(preferred: str) -> str:
+    preferred = (preferred or "").lower()
+    if preferred in {"cuda", "cpu", "mps"}:
+        if preferred == "cuda" and torch.cuda.is_available():
+            return "cuda"
+        if preferred == "mps" and torch.backends.mps.is_available():
+            return "mps"
+        if preferred == "cpu":
+            return "cpu"
+    if torch.cuda.is_available():
+        return "cuda"
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+DEVICE_PREF = os.environ.get("SD_DEVICE", "")
+device = _select_device(DEVICE_PREF)
 try:
-    # Enable mixed precision for better performance on RTX 3050
-    torch_dtype = torch.float16 if device == "cuda" else torch.float32
+    # Precision selection (env override supported)
+    precision = (os.environ.get("SD_PRECISION", "") or "").lower()
+    if precision == "fp32":
+        torch_dtype = torch.float32
+    elif precision in {"fp16", "float16"}:
+        torch_dtype = torch.float16 if device != "cpu" else torch.float32
+    elif precision in {"bf16", "bfloat16"} and hasattr(torch, "bfloat16"):
+        torch_dtype = torch.bfloat16 if device == "cuda" else torch.float32
+    else:
+        # Auto: FP16 on CUDA/MPS, FP32 on CPU
+        torch_dtype = torch.float16 if device in {"cuda", "mps"} else torch.float32
 
     sd_pipe = StableDiffusionPipeline.from_pretrained(
-        "CompVis/stable-diffusion-v1-4",
-        torch_dtype=torch_dtype,  # Use torch_dtype for StableDiffusionPipeline
+        os.environ.get("SD_MODEL_ID", "CompVis/stable-diffusion-v1-4"),
+        torch_dtype=torch_dtype,
         safety_checker=None,  # Disable for speed (add back if needed)
         requires_safety_checker=False,
-        low_cpu_mem_usage=True  # Enable memory optimization
+        low_cpu_mem_usage=True,
+        use_safetensors=True,
     ).to(device)
+    sd_pipe.set_progress_bar_config(disable=True)
 
-    # Optimize scheduler for faster generation
-    from diffusers import EulerDiscreteScheduler
-    sd_pipe.scheduler = EulerDiscreteScheduler.from_config(sd_pipe.scheduler.config)
+    # Optimize scheduler and optionally enable LCM-LoRA
+    lcm_adapter = os.environ.get("SD_LCM_LORA_ID", "")
+    if lcm_adapter:
+        sd_pipe.scheduler = LCMScheduler.from_config(sd_pipe.scheduler.config)
+        try:
+            sd_pipe.load_lora_weights(lcm_adapter)
+            # Optional small speedup
+            sd_pipe.fuse_lora()
+            logger.info(f"Loaded LCM-LoRA adapter: {lcm_adapter}")
+        except Exception as e:
+            logger.warning(f"Failed to load LCM-LoRA adapter '{lcm_adapter}': {e}")
+    else:
+        # Allow env override for scheduler; default to Euler for speed
+        scheduler_env = (os.environ.get("SD_SCHEDULER", "") or "").lower()
+        if scheduler_env == "euler":
+            sd_pipe.scheduler = EulerDiscreteScheduler.from_config(sd_pipe.scheduler.config)
+        else:
+            sd_pipe.scheduler = EulerDiscreteScheduler.from_config(sd_pipe.scheduler.config)
 
     # Additional optimizations for CPU mode
     if device == "cpu":
@@ -82,6 +125,18 @@ try:
             sd_pipe.enable_xformers_memory_efficient_attention()
         except ImportError:
             pass  # xformers not available, continue without it
+        # Enable VAE tiling to reduce VRAM usage
+        try:
+            sd_pipe.enable_vae_tiling()
+        except Exception as e:
+            logger.debug(f"VAE tiling not available: {e}")
+        # Optionally compile UNet for speed (PyTorch 2+)
+        try:
+            if (os.environ.get("TORCH_COMPILE", "0").lower() in {"1", "true", "yes"}) and hasattr(torch, "compile"):
+                sd_pipe.unet = torch.compile(sd_pipe.unet, mode="reduce-overhead")
+                logger.info("torch.compile enabled for UNet")
+        except Exception as e:
+            logger.warning(f"torch.compile not enabled: {e}")
 
     blip_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
     blip_model = BlipForConditionalGeneration.from_pretrained(
@@ -192,8 +247,8 @@ async def health_check():
         "optimizations": {
             "steps": OPTIMIZED_STEPS,
             "guidance_scale": OPTIMIZED_GUIDANCE_SCALE,
-            "scheduler": "DPMSolverMultistepScheduler",
-            "memory_optimizations": "attention_slicing" if device == "cuda" else "cpu_offloading"
+            "scheduler": type(sd_pipe.scheduler).__name__,
+            "memory_optimizations": ("attention_slicing, vae_tiling" if device == "cuda" else "cpu_offloading")
         }
     }
 
