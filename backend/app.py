@@ -43,7 +43,7 @@ OPTIMIZED_STEPS = int(os.environ.get("SD_STEPS", "15"))  # env override
 OPTIMIZED_GUIDANCE_SCALE = float(os.environ.get("SD_GUIDANCE", "7"))  # env override
 
 # Add CORS middleware
-origins_env = os.environ.get("ALLOW_ORIGINS") or "http://localhost:8082,http://127.0.0.1:8082"
+origins_env = os.environ.get("ALLOW_ORIGINS") or "http://localhost:8081,http://127.0.0.1:8081,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
 allow_origins = [o.strip() for o in origins_env.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
