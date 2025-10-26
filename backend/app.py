@@ -1,3 +1,4 @@
+# pyright: reportMissingImports=false
 """
 Aura Reflect Backend - Optimized for RTX 3050 4GB
 
@@ -15,16 +16,16 @@ EXPECTED PERFORMANCE:
 - Quality: Acceptable with aggressive optimizations
 """
 
-from fastapi import FastAPI, HTTPException, Body
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, Body  # type: ignore
+from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from typing import Any, Dict
-from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler, LCMScheduler
-from transformers import BlipProcessor, BlipForConditionalGeneration
-import torch
-from PIL import Image
+from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler, LCMScheduler  # type: ignore
+from transformers import BlipProcessor, BlipForConditionalGeneration  # type: ignore
+import torch  # type: ignore
+from PIL import Image  # type: ignore
 import base64
 import io
-import numpy as np
+import numpy as np  # type: ignore
 import logging
 import os
 
@@ -367,5 +368,5 @@ async def refine_images(payload: Dict[str, Any] = Body(...)):
         raise HTTPException(status_code=500, detail=f"Refinement failed: {str(e)}")
 
 if __name__ == "__main__":
-    import uvicorn
+    import uvicorn  # type: ignore
     uvicorn.run(app, host="0.0.0.0", port=8000)
