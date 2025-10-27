@@ -271,8 +271,8 @@ const App: React.FC = () => {
           )}
 
           {appState === AppState.INITIAL && (
-            <div className="flex justify-center items-center h-[calc(100dvh-360px)] fade-in-up">
-              <div className="w-full max-w-5xl px-2">
+            <div className="flex justify-center items-start mt-6 md:mt-8 h-[calc(100dvh-380px)] fade-in-up">
+              <div className="w-full max-w-[min(90vw,64rem)] px-3 md:px-4">
                 <PromptForm
                   onSubmit={handleGenerate}
                   isLoading={isLoading}
@@ -285,8 +285,24 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Floating status toggle moved to bottom-right */}
-          <div className="fixed bottom-4 right-4 z-50">
+          {/* Status control anchored bottom-right; panel appears to the left */}
+          <div className="fixed bottom-4 right-4 z-50 flex items-end gap-3">
+            {showStatus && (
+              <div
+                id="engine-status-panel"
+                className="glass-card w-[480px] max-w-[80vw] max-h-[32vh] overflow-auto p-3"
+              >
+                <EngineStatus
+                  engineMode={engineMode}
+                  localStatus={localHealth ?? undefined}
+                  cloudStatus={cloudHealth ?? undefined}
+                  localUrl={localUrl}
+                  cloudUrl={cloudUrl}
+                  onRefresh={runHealthCheck}
+                  refreshing={refreshingHealth}
+                />
+              </div>
+            )}
             <button
               type="button"
               className="btn-soft text-xs px-3 py-1 rounded-md"
@@ -298,23 +314,6 @@ const App: React.FC = () => {
               {showStatus ? "Hide Status" : "Status"}
             </button>
           </div>
-
-          {showStatus && (
-            <div
-              id="engine-status-panel"
-              className="fixed bottom-20 right-4 w-[360px] max-h-[60vh] overflow-auto z-50"
-            >
-              <EngineStatus
-                engineMode={engineMode}
-                localStatus={localHealth ?? undefined}
-                cloudStatus={cloudHealth ?? undefined}
-                localUrl={localUrl}
-                cloudUrl={cloudUrl}
-                onRefresh={runHealthCheck}
-                refreshing={refreshingHealth}
-              />
-            </div>
-          )}
 
           {(appState === AppState.RESULTS ||
             appState === AppState.REFINING) && (
