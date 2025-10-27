@@ -271,8 +271,8 @@ const App: React.FC = () => {
           )}
 
           {appState === AppState.INITIAL && (
-            <div className="flex justify-center items-start mt-6 md:mt-8 h-[calc(100dvh-380px)] fade-in-up">
-              <div className="w-full max-w-[min(90vw,64rem)] px-3 md:px-4">
+            <div className="flex justify-center items-start mt-3 md:mt-5 h-[calc(100dvh-340px)] fade-in-up">
+              <div className="w-full max-w-[min(92vw,70rem)] px-3 md:px-4">
                 <PromptForm
                   onSubmit={handleGenerate}
                   isLoading={isLoading}
@@ -286,11 +286,11 @@ const App: React.FC = () => {
           )}
 
           {/* Status control anchored bottom-right; panel appears to the left */}
-          <div className="fixed bottom-4 right-4 z-50 flex items-end gap-3">
+          <div className="fixed bottom-6 right-4 z-50 flex items-end gap-3">
             {showStatus && (
               <div
                 id="engine-status-panel"
-                className="glass-card w-[480px] max-w-[80vw] max-h-[32vh] overflow-auto p-3"
+                className="glass-card w-[640px] max-w-[90vw] max-h-[40vh] overflow-auto p-3"
               >
                 <EngineStatus
                   engineMode={engineMode}
