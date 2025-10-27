@@ -11,6 +11,9 @@ interface EngineStatusProps {
   refreshing?: boolean;
 }
 
+// Hide component unless explicitly enabled
+const SHOW = (import.meta.env.VITE_SHOW_ENGINE_STATUS ?? "0") === "1";
+
 const StatusBadge: React.FC<{ ok?: boolean }> = ({ ok }) => {
   const color = ok ? "bg-green-500/20 text-green-300" : "bg-yellow-500/10 text-yellow-200";
   const label = ok ? "Online" : "Unavailable";
@@ -33,6 +36,8 @@ const Summ: React.FC<{ data?: any }> = ({ data }) => {
 };
 
 const EngineStatus: React.FC<EngineStatusProps> = ({ engineMode, localStatus, cloudStatus, localUrl, cloudUrl, onRefresh, refreshing }) => {
+  if (!SHOW) return null;
+
   const [showDetails, setShowDetails] = useState(false);
 
   const modeLabel =
