@@ -271,8 +271,8 @@ const App: React.FC = () => {
           )}
 
           {appState === AppState.INITIAL && (
-            <div className="flex justify-center items-center h-[calc(100dvh-260px)] fade-in-up">
-              <div className="w-full max-w-7xl px-2">
+            <div className="flex justify-center items-center h-[calc(100dvh-360px)] fade-in-up">
+              <div className="w-full max-w-5xl px-2">
                 <PromptForm
                   onSubmit={handleGenerate}
                   isLoading={isLoading}
@@ -285,19 +285,25 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Floating status toggle (keeps EngineStatus in app but hidden by default) */}
-          <div className="absolute top-0 right-0 p-2">
+          {/* Floating status toggle moved to bottom-right */}
+          <div className="fixed bottom-4 right-4 z-50">
             <button
               type="button"
               className="btn-soft text-xs px-3 py-1 rounded-md"
               onClick={() => setShowStatus((prev) => !prev)}
+              aria-haspopup="true"
+              aria-expanded={showStatus}
+              aria-controls="engine-status-panel"
             >
               {showStatus ? "Hide Status" : "Status"}
             </button>
           </div>
 
           {showStatus && (
-            <div className="absolute top-10 right-2 w-[380px] max-h-[60vh] overflow-auto z-50">
+            <div
+              id="engine-status-panel"
+              className="fixed bottom-20 right-4 w-[360px] max-h-[60vh] overflow-auto z-50"
+            >
               <EngineStatus
                 engineMode={engineMode}
                 localStatus={localHealth ?? undefined}
