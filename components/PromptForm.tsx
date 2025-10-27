@@ -36,14 +36,14 @@ const PromptForm: React.FC<PromptFormProps> = ({ onSubmit, isLoading, engineConf
     <div className="glass-card hover-glow w-full mx-auto p-4 rounded-2xl flex flex-col h-full">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 h-full">
         <div>
-          <label htmlFor="prompt" className="block text-base md:text-lg font-medium text-gray-200 mb-2">
+          <label htmlFor="prompt" className="block text-sm md:text-base font-medium text-gray-200 mb-2">
             ¿Qué quieres expresar?
           </label>
           <textarea
             id="prompt"
             name="prompt"
-            rows={3}
-            className="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-gray-100 text-base md:text-lg leading-relaxed focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition duration-200 placeholder-gray-500"
+            rows={2}
+            className="w-full bg-black/30 border border-white/10 rounded-xl p-2 text-gray-100 text-sm md:text-base leading-relaxed focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition duration-200 placeholder-gray-500"
             placeholder="Ej: 'Una tarde lluviosa en Tokio', 'calma y serenidad', 'cyberpunk nostálgico'..."
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
