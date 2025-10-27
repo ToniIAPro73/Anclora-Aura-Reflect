@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { AppState, GeneratedImage, LocalEngineConfig, EngineMode } from "./types";
 import * as localEngine from "./services/localEngineService";
 import * as cloudEngine from "./services/cloudEngineService";
@@ -249,9 +249,16 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Initial health checks for local and cloud engines
+  // Initial health checks for local and cloud engines (guard against double-invoke in StrictMode)
+  const didInitHealth = useRef(false);
   useEffect(() => {
-    runHealthCheck().catch(() => {});
+    if (didInitHealth.current) return;
+    didInitHealth.current = true;
+    // Defer a tick to avoid competing with first paint
+    const id = setTimeout(() => {
+      runHealthCheck().catch(() => {});
+    }, 100);
+    return () => clearTimeout(id);
   }, [runHealthCheck]);
 
   return (

@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Aura Reflect custom aesthetics and micro-animations */
 
 /* Glassmorphism card */
