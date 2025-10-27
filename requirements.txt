@@ -7,3 +7,5 @@ huggingface-hub>=0.25.0
 Pillow>=10.4.0
 # Optional acceleration extras (install manually if supported)
 # xformers>=0.0.27
+fastapi
+uvicorn

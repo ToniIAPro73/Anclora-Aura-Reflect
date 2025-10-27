@@ -1,15 +1,14 @@
-import React, { useState, useCallback, useMemo } from "react";
-import { AppState, GeneratedImage, LocalEngineConfig } from "./types";
-import {
-  generateInitialImages,
-  refineImages,
-} from "./services/localEngineService";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { AppState, GeneratedImage, LocalEngineConfig, EngineMode } from "./types";
+import * as localEngine from "./services/localEngineService";
+import * as cloudEngine from "./services/cloudEngineService";
 import Header from "./components/Header";
 import PromptForm from "./components/PromptForm";
 import ImageGrid from "./components/ImageGrid";
 import Spinner from "./components/Spinner";
 import RefinePanel from "./components/RefinePanel";
 import Gallery from "./components/Gallery";
+import EngineStatus from "./components/EngineStatus";
 import { LOADING_MESSAGES } from "./constants";
 
 const DEFAULT_ENGINE_CONFIG: LocalEngineConfig = {
@@ -30,9 +29,36 @@ const App: React.FC = () => {
   const [engineConfig, setEngineConfig] = useState<LocalEngineConfig>(
     DEFAULT_ENGINE_CONFIG
   );
+  const [engineMode, setEngineMode] = useState<EngineMode>(EngineMode.AUTO);
+  const [localHealth, setLocalHealth] = useState<{ ok: boolean; data?: any; error?: string } | null>(null);
+  const [cloudHealth, setCloudHealth] = useState<{ ok: boolean; data?: any; error?: string } | null>(null);
+  const [refreshingHealth, setRefreshingHealth] = useState<boolean>(false);
 
+  const [showStatus, setShowStatus] = useState<boolean>(false);
+
+  const localUrl = (import.meta.env.VITE_LOCAL_ENGINE_URL ?? "http://localhost:8000").replace(/\/$/, "");
+  const cloudUrl = (import.meta.env.VITE_CLOUD_ENGINE_URL ?? "").replace(/\/$/, "");
   const isLoading =
     appState === AppState.GENERATING || appState === AppState.REFINING;
+
+  const preferCloudAuto = (aspectRatio: string, temperature: number): boolean => {
+    // Basic heuristic:
+    // - if local is unavailable OR running on CPU and cloud is online, prefer cloud
+    // - prefer cloud for tall/wide ratios likely to need more memory
+    const localDevice = localHealth?.data?.device;
+    const localUnavailable = !localHealth?.ok;
+    const cloudOnline = Boolean(cloudHealth?.ok);
+
+    const highDemandRatio = ["16:9", "9:16", "21:9"].includes(aspectRatio);
+    const highTemp = temperature >= 1.5;
+
+    if (localUnavailable && cloudOnline) return true;
+    if (localDevice === "cpu" && cloudOnline) return true;
+    if (highDemandRatio && cloudOnline) return true;
+    if (highTemp && cloudOnline && localDevice === "cpu") return true;
+
+    return false;
+  };
 
   const handleGenerate = useCallback(
     async (prompt: string, aspectRatio: string, temperature: number) => {
@@ -48,12 +74,40 @@ const App: React.FC = () => {
       }, 2500);
 
       try {
-        const generatedImages = await generateInitialImages(
-          prompt,
-          aspectRatio,
-          temperature,
-          engineConfig
-        );
+        let generatedImages: string[] = [];
+        if (engineMode === EngineMode.CLOUD) {
+          generatedImages = await cloudEngine.generateInitialImages(
+            prompt,
+            aspectRatio,
+            temperature,
+            engineConfig
+          );
+        } else if (engineMode === EngineMode.LOCAL) {
+          generatedImages = await localEngine.generateInitialImages(
+            prompt,
+            aspectRatio,
+            temperature,
+            engineConfig,
+            { disableFallback: true }
+          );
+        } else {
+          // Auto: decide best route, but still fallback if local fails.
+          if (preferCloudAuto(aspectRatio, temperature)) {
+            generatedImages = await cloudEngine.generateInitialImages(
+              prompt,
+              aspectRatio,
+              temperature,
+              engineConfig
+            );
+          } else {
+            generatedImages = await localEngine.generateInitialImages(
+              prompt,
+              aspectRatio,
+              temperature,
+              engineConfig
+            );
+          }
+        }
         const formattedImages: GeneratedImage[] = generatedImages.map(
           (src, index) => ({
             id: `img-${Date.now()}-${index}`,
@@ -70,7 +124,7 @@ const App: React.FC = () => {
         clearInterval(intervalId);
       }
     },
-    []
+    [engineMode, engineConfig, localHealth, cloudHealth]
   );
 
   const selectedImages = useMemo(() => {
@@ -98,11 +152,36 @@ const App: React.FC = () => {
 
       try {
         const baseImageSrcs = selectedImages.map((img) => img.src);
-        const refinedImageSrcs = await refineImages(
-          baseImageSrcs,
-          refinePrompt,
-          engineConfig
-        );
+        let refinedImageSrcs: string[] = [];
+        if (engineMode === EngineMode.CLOUD) {
+          refinedImageSrcs = await cloudEngine.refineImages(
+            baseImageSrcs,
+            refinePrompt,
+            engineConfig
+          );
+        } else if (engineMode === EngineMode.LOCAL) {
+          refinedImageSrcs = await localEngine.refineImages(
+            baseImageSrcs,
+            refinePrompt,
+            engineConfig,
+            { disableFallback: true }
+          );
+        } else {
+          // Auto: prefer cloud if local is unavailable/CPU.
+          if (preferCloudAuto("Auto", 1)) {
+            refinedImageSrcs = await cloudEngine.refineImages(
+              baseImageSrcs,
+              refinePrompt,
+              engineConfig
+            );
+          } else {
+            refinedImageSrcs = await localEngine.refineImages(
+              baseImageSrcs,
+              refinePrompt,
+              engineConfig
+            );
+          }
+        }
         const formattedImages: GeneratedImage[] = refinedImageSrcs.map(
           (src, index) => ({
             id: `img-refined-${Date.now()}-${index}`,
@@ -120,7 +199,7 @@ const App: React.FC = () => {
         clearInterval(intervalId);
       }
     },
-    [selectedImages]
+    [selectedImages, engineMode, engineConfig, localHealth, cloudHealth]
   );
 
   const handleReset = () => {
@@ -156,15 +235,49 @@ const App: React.FC = () => {
     });
   }, [selectedImages]);
 
+  const runHealthCheck = useCallback(async () => {
+    setRefreshingHealth(true);
+    try {
+      const [local, cloud] = await Promise.all([
+        localEngine.getHealth(),
+        cloudEngine.getHealth(),
+      ]);
+      setLocalHealth(local);
+      setCloudHealth(cloud);
+    } finally {
+      setRefreshingHealth(false);
+    }
+  }, []);
+  
+  // Faster first paint: only check local health on mount; cloud health on demand
+  const didInitHealth = useRef(false);
+  useEffect(() => {
+    if (didInitHealth.current) return;
+    didInitHealth.current = true;
+    const id = setTimeout(async () => {
+      try {
+        const local = await localEngine.getHealth();
+        setLocalHealth(local);
+      } catch {}
+    }, 50);
+    return () => clearTimeout(id);
+  }, []);
+  
+  // When the status panel opens, fetch cloud health (cached inside cloud engine)
+  useEffect(() => {
+    if (!showStatus) return;
+    cloudEngine.getHealth().then(setCloudHealth).catch(() => {});
+  }, [showStatus]);
+
   return (
-    <div className="min-h-screen text-white font-sans flex flex-col items-center p-4">
+    <div className="h-screen overflow-hidden text-white font-sans flex flex-col items-center p-4">
       {isLoading && <Spinner message={loadingMessage} />}
-      <div className="w-full max-w-7xl mx-auto">
+      <div className="w-full max-w-7xl mx-auto flex flex-col h-full">
         <Header />
-        <main>
+        <main className="flex-1 relative">
           {error && (
             <div
-              className="bg-red-500/10 backdrop-blur-sm border border-red-500/30 text-red-300 px-4 py-3 rounded-lg relative text-center mb-6"
+              className="bg-red-500/10 backdrop-blur-sm border border-red-500/30 text-red-300 px-4 py-3 rounded-lg relative text-center mb-4"
               role="alert"
             >
               <strong className="font-bold">Error: </strong>
@@ -173,13 +286,49 @@ const App: React.FC = () => {
           )}
 
           {appState === AppState.INITIAL && (
-            <PromptForm
-              onSubmit={handleGenerate}
-              isLoading={isLoading}
-              engineConfig={engineConfig}
-              onConfigChange={setEngineConfig}
-            />
+            <div className="flex justify-center items-start mt-2 md:mt-4 h-[calc(100dvh-430px)] fade-in-up">
+              <div className="w-full max-w-[min(88vw,64rem)] px-3 md:px-4 pb-10">
+                <PromptForm
+                  onSubmit={handleGenerate}
+                  isLoading={isLoading}
+                  engineConfig={engineConfig}
+                  onConfigChange={setEngineConfig}
+                  engineMode={engineMode}
+                  onEngineModeChange={setEngineMode}
+                />
+              </div>
+            </div>
           )}
+
+          {/* Status control anchored bottom-right; panel appears to the left */}
+          <div className="fixed bottom-6 right-4 z-50 flex items-end gap-3">
+            {showStatus && (
+              <div
+                id="engine-status-panel"
+                className="glass-card w-[640px] max-w-[90vw] max-h-[40vh] overflow-auto p-3"
+              >
+                <EngineStatus
+                  engineMode={engineMode}
+                  localStatus={localHealth ?? undefined}
+                  cloudStatus={cloudHealth ?? undefined}
+                  localUrl={localUrl}
+                  cloudUrl={cloudUrl}
+                  onRefresh={runHealthCheck}
+                  refreshing={refreshingHealth}
+                />
+              </div>
+            )}
+            <button
+              type="button"
+              className="btn-soft text-xs px-3 py-1 rounded-md"
+              onClick={() => setShowStatus((prev) => !prev)}
+              aria-haspopup="true"
+              aria-expanded={showStatus}
+              aria-controls="engine-status-panel"
+            >
+              {showStatus ? "Hide Status" : "Status"}
+            </button>
+          </div>
 
           {(appState === AppState.RESULTS ||
             appState === AppState.REFINING) && (

@@ -1,3 +1,6 @@
+# pyright: reportMissingImports=false
+# type: ignore
+
 """
 Aura Reflect Backend - Optimized for RTX 3050 4GB
 
@@ -15,17 +18,18 @@ EXPECTED PERFORMANCE:
 - Quality: Acceptable with aggressive optimizations
 """
 
-from fastapi import FastAPI, HTTPException, Body
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, Body  # type: ignore
+from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from typing import Any, Dict
-from diffusers import StableDiffusionPipeline
-from transformers import BlipProcessor, BlipForConditionalGeneration
-import torch
-from PIL import Image
+from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler, LCMScheduler  # type: ignore
+from transformers import BlipProcessor, BlipForConditionalGeneration  # type: ignore
+import torch  # type: ignore
+from PIL import Image  # type: ignore
 import base64
 import io
-import numpy as np
+import numpy as np  # type: ignore
 import logging
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -34,36 +38,86 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 # Optimized configuration for RTX 3050 4GB
-NUM_IMAGES = 2
-OPTIMIZED_STEPS = 15  # Further reduced for speed (from 20)
-OPTIMIZED_GUIDANCE_SCALE = 7  # Lower for faster generation
+NUM_IMAGES = int(os.environ.get("SD_NUM_IMAGES", "2"))
+OPTIMIZED_STEPS = int(os.environ.get("SD_STEPS", "15"))  # env override
+OPTIMIZED_GUIDANCE_SCALE = float(os.environ.get("SD_GUIDANCE", "7"))  # env override
 
 # Add CORS middleware
+# Si ALLOW_ORIGINS no está definido o está vacío, usamos puertos comunes de desarrollo.
+origins_env = os.environ.get("ALLOW_ORIGINS") or ""
+if not origins_env.strip():
+    origins_env = "http://localhost:8081,http://127.0.0.1:8081,http://localhost:5173,http://127.0.0.1:5173"
+allow_origins = [o.strip() for o in origins_env.split(",") if o.strip()]
+logger.info(f"CORS configured: allow_origins={allow_origins}, allow_origin_regex=http://(localhost|127\\.0\\.0\\.1):\\d+$")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8082", "http://127.0.0.1:8082"],  # Allow frontend origin
+    allow_origins=allow_origins,
+    # Permitimos cualquier puerto localhost para desarrollo.
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Load models with optimizations
-device = "cuda" if torch.cuda.is_available() else "cpu"
-try:
-    # Enable mixed precision for better performance on RTX 3050
-    torch_dtype = torch.float16 if device == "cuda" else torch.float32
+def _select_device(preferred: str) -> str:
+    preferred = (preferred or "").lower()
+    if preferred in {"cuda", "cpu", "mps"}:
+        if preferred == "cuda" and torch.cuda.is_available():
+            return "cuda"
+        if preferred == "mps" and torch.backends.mps.is_available():
+            return "mps"
+        if preferred == "cpu":
+            return "cpu"
+    if torch.cuda.is_available():
+        return "cuda"
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
 
-    sd_pipe = StableDiffusionPipeline.from_pretrained(
-        "CompVis/stable-diffusion-v1-4",
-        torch_dtype=torch_dtype,  # Use torch_dtype for StableDiffusionPipeline
+DEVICE_PREF = os.environ.get("SD_DEVICE", "")
+device = _select_device(DEVICE_PREF)
+try:
+    # Precision selection (env override supported)
+    precision = (os.environ.get("SD_PRECISION", "") or "").lower()
+    if precision == "fp32":
+        torch_dtype = torch.float32
+    elif precision in {"fp16", "float16"}:
+        torch_dtype = torch.float16 if device != "cpu" else torch.float32
+    elif precision in {"bf16", "bfloat16"} and hasattr(torch, "bfloat16"):
+        torch_dtype = torch.bfloat16 if device == "cuda" else torch.float32
+    else:
+        # Auto: FP16 on CUDA/MPS, FP32 on CPU
+        torch_dtype = torch.float16 if device in {"cuda", "mps"} else torch.float32
+
+    sd_pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_pretrained(
+        os.environ.get("SD_MODEL_ID", "CompVis/stable-diffusion-v1-4"),
+        torch_dtype=torch_dtype,
         safety_checker=None,  # Disable for speed (add back if needed)
         requires_safety_checker=False,
-        low_cpu_mem_usage=True  # Enable memory optimization
+        low_cpu_mem_usage=True,
+        use_safetensors=True,
     ).to(device)
+    sd_pipe.set_progress_bar_config(disable=True)
 
-    # Optimize scheduler for faster generation
-    from diffusers import EulerDiscreteScheduler
-    sd_pipe.scheduler = EulerDiscreteScheduler.from_config(sd_pipe.scheduler.config)
+    # Optimize scheduler and optionally enable LCM-LoRA
+    lcm_adapter = os.environ.get("SD_LCM_LORA_ID", "")
+    if lcm_adapter:
+        sd_pipe.scheduler = LCMScheduler.from_config(sd_pipe.scheduler.config)
+        try:
+            sd_pipe.load_lora_weights(lcm_adapter)
+            # Optional small speedup
+            sd_pipe.fuse_lora()
+            logger.info(f"Loaded LCM-LoRA adapter: {lcm_adapter}")
+        except Exception as e:
+            logger.warning(f"Failed to load LCM-LoRA adapter '{lcm_adapter}': {e}")
+    else:
+        # Allow env override for scheduler; default to Euler for speed
+        scheduler_env = (os.environ.get("SD_SCHEDULER", "") or "").lower()
+        if scheduler_env == "euler":
+            sd_pipe.scheduler = EulerDiscreteScheduler.from_config(sd_pipe.scheduler.config)
+        else:
+            sd_pipe.scheduler = EulerDiscreteScheduler.from_config(sd_pipe.scheduler.config)
 
     # Additional optimizations for CPU mode
     if device == "cpu":
@@ -82,12 +136,24 @@ try:
             sd_pipe.enable_xformers_memory_efficient_attention()
         except ImportError:
             pass  # xformers not available, continue without it
+        # Enable VAE tiling to reduce VRAM usage
+        try:
+            sd_pipe.enable_vae_tiling()
+        except Exception as e:
+            logger.debug(f"VAE tiling not available: {e}")
+        # Optionally compile UNet for speed (PyTorch 2+)
+        try:
+            if (os.environ.get("TORCH_COMPILE", "0").lower() in {"1", "true", "yes"}) and hasattr(torch, "compile"):
+                sd_pipe.unet = torch.compile(sd_pipe.unet, mode="reduce-overhead")
+                logger.info("torch.compile enabled for UNet")
+        except Exception as e:
+            logger.warning(f"torch.compile not enabled: {e}")
 
-    blip_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-    blip_model = BlipForConditionalGeneration.from_pretrained(
+    blip_processor: BlipProcessor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+    blip_model: BlipForConditionalGeneration = BlipForConditionalGeneration.from_pretrained(
         "Salesforce/blip-image-captioning-base",
         torch_dtype=torch_dtype
-    ).to(device)
+    ).to(device)  # type: ignore
 
 except Exception as e:
     raise RuntimeError(f"Failed to load models: {str(e)}")
@@ -116,16 +182,6 @@ def _extract_aspect_ratio(payload: Dict[str, Any]) -> str:
     return raw_ratio
 
 
-def _extract_temperature(payload: Dict[str, Any]) -> float:
-    temp = payload.get("temperature")
-    if temp is None:
-        raise HTTPException(status_code=422, detail="temperature field is required.")
-    try:
-        return float(temp)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=422, detail="temperature must be a number.")
-
-
 @app.post("/generate")
 async def generate_images(payload: Dict[str, Any] = Body(...)):
     try:
@@ -137,25 +193,39 @@ async def generate_images(payload: Dict[str, Any] = Body(...)):
             raise HTTPException(status_code=422, detail="prompt field is required.")
 
         aspect_ratio = _extract_aspect_ratio(payload)
-        temperature = _extract_temperature(payload)
 
         logger.info(f"Starting image generation - Prompt: {prompt[:50]}..., Aspect Ratio: {aspect_ratio}, Steps: {OPTIMIZED_STEPS}")
 
-        # Map aspect ratio to SD dimensions
-        ratios = {
-            "1:1": (512, 512),
-            "9:16": (512, 912),
-            "16:9": (912, 512),
-            "3:4": (512, 680),
-            "4:3": (680, 512),
+        # Map aspect ratio to dimensions; allow 'high' resolution for cloud
+        resolution = (payload.get("resolution") or "").lower()
+        ratios_low = {
+            "Auto": (640, 640),
+            "1:1": (640, 640),
+            "9:16": (512, 896),
+            "16:9": (896, 512),
+            "3:4": (576, 768),
+            "4:3": (768, 576),
             "3:2": (768, 512),
             "2:3": (512, 768),
             "5:4": (640, 512),
             "4:5": (512, 640),
-            "21:9": (1152, 512),
-            "Auto": (512, 512),
+            "21:9": (960, 416),
         }
-        width, height = ratios.get(aspect_ratio, (512, 512))
+        ratios_high = {
+            "Auto": (1024, 1024),
+            "1:1": (1024, 1024),
+            "9:16": (576, 1024),
+            "16:9": (1024, 576),
+            "3:4": (768, 1024),
+            "4:3": (1024, 768),
+            "3:2": (1024, 680),
+            "2:3": (680, 1024),
+            "5:4": (1024, 816),
+            "4:5": (816, 1024),
+            "21:9": (1024, 432),
+        }
+        ratio_map = ratios_high if resolution == "high" else ratios_low
+        width, height = ratio_map.get(aspect_ratio, ratio_map["Auto"])
 
         # Generate images with optimized parameters
         guidance_scale = OPTIMIZED_GUIDANCE_SCALE  # Use optimized fixed value instead of temperature mapping
@@ -168,7 +238,7 @@ async def generate_images(payload: Dict[str, Any] = Body(...)):
             num_images_per_prompt=NUM_IMAGES,
             guidance_scale=guidance_scale,
             num_inference_steps=num_inference_steps,
-        ).images
+        ).images  # type: ignore
 
         generation_time = time.time() - start_time
         logger.info(f"Image generation completed in {generation_time:.2f} seconds for {NUM_IMAGES} images")
@@ -192,8 +262,8 @@ async def health_check():
         "optimizations": {
             "steps": OPTIMIZED_STEPS,
             "guidance_scale": OPTIMIZED_GUIDANCE_SCALE,
-            "scheduler": "DPMSolverMultistepScheduler",
-            "memory_optimizations": "attention_slicing" if device == "cuda" else "cpu_offloading"
+            "scheduler": type(sd_pipe.scheduler).__name__,
+            "memory_optimizations": ("attention_slicing, vae_tiling" if device == "cuda" else "cpu_offloading")
         }
     }
 
@@ -214,7 +284,7 @@ async def benchmark_system():
             num_images_per_prompt=1,
             guidance_scale=OPTIMIZED_GUIDANCE_SCALE,
             num_inference_steps=OPTIMIZED_STEPS
-        ).images
+        ).images  # type: ignore
 
         generation_time = time.time() - start_time
 
@@ -234,6 +304,14 @@ async def benchmark_system():
             "error": str(e),
             "device": device
         }
+
+@app.get("/")
+async def root():
+    return {
+        "status": "ok",
+        "message": "Aura Reflect FastAPI backend is running",
+        "endpoints": ["/health", "/generate", "/refine", "/benchmark"]
+    }
 
 @app.post("/refine")
 async def refine_images(payload: Dict[str, Any] = Body(...)):
@@ -258,7 +336,7 @@ async def refine_images(payload: Dict[str, Any] = Body(...)):
                 image = base64_to_image(b64)
             except Exception:
                 raise HTTPException(status_code=400, detail="Invalid base64 string in images")
-            inputs = blip_processor(image, return_tensors="pt").to(device)
+            inputs = blip_processor(image, return_tensors="pt").to(device)  # type: ignore
             out = blip_model.generate(**inputs, max_length=50)
             description = blip_processor.decode(out[0], skip_special_tokens=True)
             descriptions.append(description)
@@ -272,7 +350,7 @@ async def refine_images(payload: Dict[str, Any] = Body(...)):
             num_images_per_prompt=NUM_IMAGES,
             guidance_scale=OPTIMIZED_GUIDANCE_SCALE,
             num_inference_steps=OPTIMIZED_STEPS
-        ).images
+        ).images  # type: ignore
 
         refinement_time = time.time() - start_time
         logger.info(f"Image refinement completed in {refinement_time:.2f} seconds for {NUM_IMAGES} images")
@@ -287,5 +365,5 @@ async def refine_images(payload: Dict[str, Any] = Body(...)):
         raise HTTPException(status_code=500, detail=f"Refinement failed: {str(e)}")
 
 if __name__ == "__main__":
-    import uvicorn
+    import uvicorn  # type: ignore
     uvicorn.run(app, host="0.0.0.0", port=8000)

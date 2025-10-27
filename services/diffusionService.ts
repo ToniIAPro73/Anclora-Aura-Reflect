@@ -3,12 +3,12 @@ import path from 'node:path';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 
 const ASPECT_RATIO_DIMENSIONS: Record<string, { width: number; height: number }> = {
-  Auto: { width: 1024, height: 1024 },
-  '1:1': { width: 1024, height: 1024 },
-  '3:2': { width: 1152, height: 768 },
-  '2:3': { width: 768, height: 1152 },
-  '16:9': { width: 1216, height: 704 },
-  '9:16': { width: 704, height: 1216 },
+  Auto: { width: 640, height: 640 },
+  '1:1': { width: 640, height: 640 },
+  '3:2': { width: 768, height: 512 },
+  '2:3': { width: 512, height: 768 },
+  '16:9': { width: 896, height: 512 },
+  '9:16': { width: 512, height: 896 },
 };
 
 const DEFAULT_GUIDANCE = 6.5;

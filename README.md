@@ -29,3 +29,53 @@ A React-based moodboard generator using local AI models for text-to-image and im
    The app will run on http://localhost:5173
 
 Note: Ensure the backend is running before using the app, as it relies on local AI models.
+
+---
+
+## Despliegue a Hugging Face Spaces (Cloud Engine)
+
+El proyecto incluye un script de despliegue para crear/reutilizar un Space (SDK Docker), subir el backend (FastAPI) y configurar el frontend para usar el motor de nube.
+
+### 1) Variables necesarias
+
+- Token HF (escritura): `HF_TOKEN`
+- ID del Space: `SPACE_ID` (ej. `ToniBalles73/Anclora`)
+- Orígenes frontend (CORS): `ORIGINS` (ej. `http://localhost:5173,http://127.0.0.1:5173`)
+
+### 2) Comando único, multiplataforma
+
+Usa el comando `deploy:space`, que lee tus variables de entorno y ejecuta el despliegue de forma consistente en Windows, macOS y Linux:
+
+```bash
+# Windows (PowerShell)
+$env:HF_TOKEN="hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+$env:SPACE_ID="ToniBalles73/Anclora"
+$env:ORIGINS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
+npm run deploy:space
+
+# Linux/macOS (bash/zsh)
+export HF_TOKEN="hf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+export SPACE_ID="ToniBalles73/Anclora"
+export ORIGINS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
+npm run deploy:space
+```
+
+Opcionalmente, también existen comandos específicos por sistema:
+- `npm run deploy:space:win`
+- `npm run deploy:space:unix`
+
+El despliegue:
+- Crea/reutiliza el Space (SDK=docker)
+- Sube Dockerfile, app.py, requirements.txt y `backend/`
+- Intenta fijar secretos: `ALLOW_ORIGINS`, `HUGGINGFACEHUB_API_TOKEN`
+- Actualiza `.env.local` con `VITE_CLOUD_ENGINE_URL`
+
+### 3) Verificar
+
+- URL del Space: `https://<usuario>-<space>.hf.space` (ej. `https://ToniBalles73-Anclora.hf.space`)
+- Abre `/health` para comprobar el estado.
+- Reinicia el frontend para aplicar `.env.local`.
+- En la UI, usa “Cloud” o “Auto (fallback)” en el selector de motor.
+
+Más detalles:
+- Consulta `docs/hf_spaces_deploy_quickstart.md` y `docs/cloud_deploy.md`.

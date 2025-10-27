@@ -1,8 +1,37 @@
 import { LocalEngineConfig } from "../types";
+import * as cloudEngine from "./cloudEngineService";
 
 const LOCAL_ENGINE_BASE_URL = (
   import.meta.env.VITE_LOCAL_ENGINE_URL ?? "http://localhost:8000"
 ).replace(/\/$/, "");
+
+const CLOUD_ENGINE_BASE_URL = (
+  import.meta.env.VITE_CLOUD_ENGINE_URL ?? ""
+).replace(/\/$/, "");
+
+const canUseCloudFallback = (): boolean => Boolean(CLOUD_ENGINE_BASE_URL);
+
+export const getHealth = async (timeoutMs = 1000): Promise<{ ok: boolean; data?: any; error?: string }> => {
+  try {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    const response = await fetch(`${LOCAL_ENGINE_BASE_URL}/health`, {
+      method: "GET",
+      headers: {
+        "Accept": "application/json",
+      },
+      signal: controller.signal,
+    }).finally(() => clearTimeout(id));
+    if (!response.ok) {
+      return { ok: false, error: `HTTP ${response.status}` };
+    }
+    const data = await response.json();
+    return { ok: true, data };
+  } catch (error: any) {
+    const msg = error?.name === "AbortError" ? "timeout" : (error?.message ?? String(error));
+    return { ok: false, error: msg };
+  }
+};
 
 const dataUrlToBase64 = (dataUrl: string): string => {
   const parts = dataUrl.split(",");
@@ -50,7 +79,8 @@ export const generateInitialImages = async (
   prompt: string,
   aspectRatio: string,
   temperature: number,
-  config: LocalEngineConfig
+  config: LocalEngineConfig,
+  options?: { disableFallback?: boolean }
 ): Promise<string[]> => {
   const payload = {
     prompt,
@@ -58,21 +88,30 @@ export const generateInitialImages = async (
     temperature,
   };
 
-  const response = await fetch(`${LOCAL_ENGINE_BASE_URL}/generate`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const response = await fetch(`${LOCAL_ENGINE_BASE_URL}/generate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-  return handleResponse(response);
+    return await handleResponse(response);
+  } catch (error) {
+    if (!options?.disableFallback && canUseCloudFallback()) {
+      // Fallback to cloud engine
+      return cloudEngine.generateInitialImages(prompt, aspectRatio, temperature, config);
+    }
+    throw error;
+  }
 };
 
 export const refineImages = async (
   baseImages: string[],
   refinePrompt: string,
-  config: LocalEngineConfig
+  config: LocalEngineConfig,
+  options?: { disableFallback?: boolean }
 ): Promise<string[]> => {
   const payload = {
     refinePrompt,
@@ -80,13 +119,21 @@ export const refineImages = async (
     config: buildConfigPayload(config),
   };
 
-  const response = await fetch(`${LOCAL_ENGINE_BASE_URL}/refine`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const response = await fetch(`${LOCAL_ENGINE_BASE_URL}/refine`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-  return handleResponse(response);
+    return await handleResponse(response);
+  } catch (error) {
+    if (!options?.disableFallback && canUseCloudFallback()) {
+      // Fallback to cloud engine
+      return cloudEngine.refineImages(baseImages, refinePrompt, config);
+    }
+    throw error;
+  }
 };
