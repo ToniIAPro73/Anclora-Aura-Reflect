@@ -248,18 +248,26 @@ const App: React.FC = () => {
       setRefreshingHealth(false);
     }
   }, []);
-
-  // Initial health checks for local and cloud engines (guard against double-invoke in StrictMode)
+  
+  // Faster first paint: only check local health on mount; cloud health on demand
   const didInitHealth = useRef(false);
   useEffect(() => {
     if (didInitHealth.current) return;
     didInitHealth.current = true;
-    // Defer a tick to avoid competing with first paint
-    const id = setTimeout(() => {
-      runHealthCheck().catch(() => {});
-    }, 100);
+    const id = setTimeout(async () => {
+      try {
+        const local = await localEngine.getHealth();
+        setLocalHealth(local);
+      } catch {}
+    }, 50);
     return () => clearTimeout(id);
-  }, [runHealthCheck]);
+  }, []);
+  
+  // When the status panel opens, fetch cloud health (cached inside cloud engine)
+  useEffect(() => {
+    if (!showStatus) return;
+    cloudEngine.getHealth().then(setCloudHealth).catch(() => {});
+  }, [showStatus]);
 
   return (
     <div className="h-screen overflow-hidden text-white font-sans flex flex-col items-center p-4">
@@ -279,7 +287,7 @@ const App: React.FC = () => {
 
           {appState === AppState.INITIAL && (
             <div className="flex justify-center items-start mt-2 md:mt-4 h-[calc(100dvh-430px)] fade-in-up">
-              <div className="w-full max-w-[min(92vw,70rem)] px-3 md:px-4 pb-8">
+              <div className="w-full max-w-[min(88vw,64rem)] px-3 md:px-4 pb-10">
                 <PromptForm
                   onSubmit={handleGenerate}
                   isLoading={isLoading}
