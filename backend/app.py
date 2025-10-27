@@ -45,9 +45,11 @@ OPTIMIZED_GUIDANCE_SCALE = float(os.environ.get("SD_GUIDANCE", "7"))  # env over
 # Add CORS middleware
 origins_env = os.environ.get("ALLOW_ORIGINS") or "http://localhost:8081,http://127.0.0.1:8081,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8082,http://127.0.0.1:8082"
 allow_origins = [o.strip() for o in origins_env.split(",") if o.strip()]
+# Use both explicit list and a permissive regex for localhost dev ports
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
