@@ -9,8 +9,16 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
+
+// Allow disabling StrictMode in dev to speed reloads
+const useStrict = (import.meta.env.VITE_STRICT_MODE ?? "1") !== "0";
+
 root.render(
-  <React.StrictMode>
+  useStrict ? (
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  ) : (
     <App />
-  </React.StrictMode>
+  )
 );

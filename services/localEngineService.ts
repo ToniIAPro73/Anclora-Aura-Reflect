@@ -11,21 +11,25 @@ const CLOUD_ENGINE_BASE_URL = (
 
 const canUseCloudFallback = (): boolean => Boolean(CLOUD_ENGINE_BASE_URL);
 
-export const getHealth = async (): Promise<{ ok: boolean; data?: any; error?: string }> => {
+export const getHealth = async (timeoutMs = 1000): Promise<{ ok: boolean; data?: any; error?: string }> => {
   try {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
     const response = await fetch(`${LOCAL_ENGINE_BASE_URL}/health`, {
       method: "GET",
       headers: {
         "Accept": "application/json",
       },
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(id));
     if (!response.ok) {
       return { ok: false, error: `HTTP ${response.status}` };
     }
     const data = await response.json();
     return { ok: true, data };
   } catch (error: any) {
-    return { ok: false, error: error?.message ?? String(error) };
+    const msg = error?.name === "AbortError" ? "timeout" : (error?.message ?? String(error));
+    return { ok: false, error: msg };
   }
 };
 
