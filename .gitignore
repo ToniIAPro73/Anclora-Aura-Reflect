@@ -15,8 +15,8 @@ models/
 __pycache__/
 
 # Python virtual environments
-.venv/
-venv/
+.venv*/
+venv*/
 
 # Editor directories and files
 .vscode/*
@@ -28,3 +28,15 @@ venv/
 *.njsproj
 *.sln
 *.sw?
+
+# Temporary files
+*.tmp
+temp/
+.cache/
+
+# Images
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.svg
