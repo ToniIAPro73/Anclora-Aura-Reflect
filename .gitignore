@@ -18,8 +18,6 @@ __pycache__/
 # Ignore any venv variant (e.g., .venv311, venv311)
 .venv*/
 venv*/
-.venv*/
-venv*/
 .python-version
 .pytest_cache/
 
